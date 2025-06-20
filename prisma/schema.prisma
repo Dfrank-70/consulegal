@@ -1,0 +1,98 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  password    String
+  role        Role     @default(CLIENT)
+  isBlocked   Boolean  @default(false)
+  llmProvider String?
+  customInstructions String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  conversations Conversation[]
+  subscription  Subscription?
+  tokenUsage   TokenUsage[]
+}
+
+model LLMProvider {
+  id       String @id @default(cuid())
+  name     String @unique
+  apiKey   String
+  isActive Boolean @default(true)
+  config   Json?
+}
+
+model Conversation {
+  id        String @id @default(cuid())
+  userId    String
+  title     String?
+  createdAt DateTime @default(now())
+  
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages Message[]
+}
+
+model Message {
+  id             String @id @default(cuid())
+  conversationId String
+  role           MessageRole
+  content        String @db.Text
+  tokensIn       Int?
+  tokensOut      Int?
+  llmProvider    String?
+  attachments    Json?
+  createdAt      DateTime @default(now())
+  
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+
+model Subscription {
+  id        String @id @default(cuid())
+  userId    String @unique
+  stripeId  String @unique
+  plan      SubscriptionPlan
+  status    String
+  createdAt DateTime @default(now())
+
+  // Limite di token per il piano di abbonamento
+  tokenLimit Int @default(25000) // Esempio: 25,000 token di default per un nuovo abbonato
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model TokenUsage {
+  id          String   @id @default(cuid())
+  userId      String
+  tokensUsed  Int
+  cost        Float?
+  date        DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum Role {
+  ADMIN
+  CLIENT
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+}
+
+enum SubscriptionPlan {
+  MONTHLY
+  ANNUAL
+}

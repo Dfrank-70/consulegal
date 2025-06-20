@@ -1,0 +1,159 @@
+## Riepilogo Attività ConsulLegal AI - 18 Giugno
+
+**== Stato Attuale (19 Giugno Pomeriggio) ==
+Obiettivo: Far sì che la modifica del titolo di una conversazione si rifletta immediatamente sia nella sidebar sia nell'interfaccia della chat, senza refresh manuali.
+
+Problema Corrente:
+1.  Modifica Titolo API: La chiamata API (PUT /api/conversations/[id]) per aggiornare il titolo nel database funziona correttamente.
+2.  Chat Interface (Titolo):
+    *   Dopo aver modificato il titolo e salvato, il titolo nell'interfaccia chat (`ChatInterface`) sembra aggiornarsi brevemente o per niente, e poi torna al valore *precedente* alla modifica.
+    *   Questo accade anche se la sidebar (dopo un refresh di pagina o un click) mostra il titolo corretto.
+    *   Al ricaricamento completo della pagina, la sidebar ha il titolo aggiornato, ma l'interfaccia chat mostra ancora il titolo vecchio.
+3.  Sidebar:
+    *   Non si aggiorna automaticamente subito dopo la modifica del titolo.
+    *   Si aggiorna correttamente dopo un ricaricamento completo della pagina (F5).
+    *   A volte si aggiorna se si clicca su un'altra voce della sidebar e poi si torna indietro (suggerendo che la navigazione interna forza un re-fetch).
+    *   `router.refresh()` in `ChatInterface` viene chiamato, ma non sembra sufficiente per la sidebar.
+    *   Tentativi fatti su `DashboardSidebar`:
+        *   Aggiunte dipendenze `pathname`, `searchParams` a `useEffect`.
+        *   Aggiunto `{ cache: 'no-store' }` al `fetch`.
+
+Ipotesi Principale per il Titolo in ChatInterface:
+*   L'`useEffect` in `ChatInterface` (quello che dipende da `selectedConversationId` e carica i messaggi, circa righe 70-130) ha una logica per impostare `conversationTitle`. Questa logica probabilmente sovrascrive il titolo appena modificato con un titolo di default o basato sui messaggi caricati, ignorando l'ultimo titolo salvato nel DB.
+
+Prossimi Passi da Fare (quando si riprende):
+1.  **Priorità Alta: Risolvere il Reverting del Titolo in `ChatInterface`**
+    *   Modificare l'`useEffect` in `components/chat/chat-interface.tsx` (quello che si attiva con `selectedConversationId`):
+        *   Quando `selectedConversationId` cambia (o al primo caricamento di una conversazione), questo `useEffect` **deve** recuperare il titolo *attuale* e *corretto* della conversazione dal backend.
+        *   Questo potrebbe significare:
+            *   Aggiungere una chiamata a un endpoint tipo `GET /api/conversations/[conversationId]` per ottenere solo i dettagli della conversazione (incluso il titolo).
+            *   Oppure, assicurarsi che l'endpoint `GET /api/chat?conversationId=[ID]` (che carica i messaggi) restituisca anche il titolo aggiornato della conversazione.
+        *   Lo stato `conversationTitle` in `ChatInterface` deve essere impostato con questo titolo autorevole proveniente dal backend, e non con fallback generati localmente, a meno che la conversazione sia completamente nuova e non ancora salvata.
+2.  **Rivalutare l'Aggiornamento Automatico della Sidebar:**
+    *   Una volta che `ChatInterface` mostra e mantiene costantemente il titolo corretto, rivalutare il comportamento di `router.refresh()` sulla sidebar. È possibile che la sincronizzazione corretta del titolo in `ChatInterface` possa influenzare positivamente anche questo aspetto, o che il problema diventi più chiaro.
+
+**Obiettivo Principale:** Implementare la gestione dei limiti di token per gli utenti, con funzionalità di amministrazione.
+
+---
+
+### ✅ Attività Completate Finora:
+
+1.  **Backend API per Amministrazione Utenti:**
+    *   Creato endpoint `GET /api/admin/users` per permettere agli admin di visualizzare tutti gli utenti con i dettagli della loro sottoscrizione (incluso `tokenLimit`).
+    *   Creato endpoint `PUT /api/admin/users/[userId]/subscription` per permettere agli admin di aggiornare il `tokenLimit` (e potenzialmente altri campi della sottoscrizione) di un utente specifico.
+    *   Implementata l'autorizzazione basata sul ruolo (`ADMIN`) per entrambi gli endpoint.
+
+2.  **Frontend - Pagina di Amministrazione Utenti:**
+    *   Creata la pagina `/dashboard/admin/user-management/page.tsx`.
+    *   La pagina recupera e visualizza la lista degli utenti e i loro dettagli (incluso `tokenLimit`) dall'API `GET /api/admin/users`.
+    *   Implementata la protezione lato client: la pagina è accessibile e visualizza i dati solo se l'utente loggato ha il ruolo `ADMIN`.
+    *   Aggiunto un link condizionale "Gestione Utenti" nella sidebar del dashboard (`app/dashboard/layout.tsx`), visibile solo agli utenti `ADMIN`.
+
+3.  **Risoluzione Problemi Tecnici:**
+    *   Risolti gli errori di linting relativi all'importazione dell'enum `Role` da `@prisma/client`. La soluzione adottata è stata quella di confrontare `session.user.role` con stringhe letterali (es. `"ADMIN"`) nei file interessati, dato che `session.user.role` è gestito come stringa in `auth.ts`.
+
+4.  **Implementazione Limiti Token Giornalieri:**
+    *   Chiarito che il `tokenLimit` nel modello `Subscription` si riferisce a un **limite giornaliero** di token.
+    *   Modificato l'endpoint della chat (`/api/chat/route.ts`) per:
+        *   Calcolare i token usati dall'utente solo per la **giornata corrente**.
+        *   Confrontare questo utilizzo giornaliero con il `tokenLimit` (giornaliero) dell'utente.
+        *   Bloccare l'utente se il limite giornaliero è superato, con un messaggio appropriato.
+
+---
+
+### 🧪 Prossimi Passi: Test del Flusso Limite Giornaliero
+
+L'obiettivo è verificare che la logica dei limiti giornalieri e la loro gestione funzionino correttamente.
+
+**Ambiente di Test:**
+*   Server di sviluppo Next.js in esecuzione.
+*   Prisma Studio (`npx prisma studio`) per ispezione/manipolazione DB.
+
+**Scenari di Test Dettagliati:**
+
+1.  **Raggiungimento del Limite Giornaliero:**
+    *   **Preparazione:**
+        *   Scegliere/creare un utente `CLIENT` con sottoscrizione attiva.
+        *   Impostare un `tokenLimit` basso (es. 100-200) per la sua sottoscrizione (via Prisma Studio o API admin con Postman/curl).
+        *   Assicurarsi che non ci siano `TokenUsage` per oggi per quell'utente (o cancellarli).
+    *   **Test:** Accedere come utente `CLIENT`, usare la chat fino a superare il limite.
+    *   **Verifica:** L'utente viene bloccato con il messaggio di limite giornaliero raggiunto.
+
+2.  **Reset del Limite il Giorno Successivo:**
+    *   **Simulazione:** Attendere la mezzanotte o modificare la data dei record `TokenUsage` di oggi (impostandoli a ieri) tramite Prisma Studio.
+    *   **Test:** Accedere come utente `CLIENT` il "giorno successivo".
+    *   **Verifica:** L'utente può nuovamente utilizzare la chat, poiché il conteggio giornaliero è resettato.
+
+3.  **Modifica del Limite da Parte dell'Admin (e sblocco utente):**
+    *   **Preparazione:** Un utente `CLIENT` ha raggiunto il limite giornaliero ed è bloccato.
+    *   **Modifica:** Usare un utente `ADMIN` e Postman/curl per inviare una richiesta `PUT` a `/api/admin/users/[userIdDelClient]/subscription` con un `tokenLimit` più alto (es. 500).
+    *   **Test:** Accedere come utente `CLIENT`.
+    *   **Verifica:** L'utente può riprendere a usare la chat fino al nuovo limite giornaliero.
+
+---
+
+### 🚀 Passi Successivi (Dopo i Test):
+
+1.  **Completare l'Interfaccia Admin per la Modifica del `tokenLimit`:**
+    *   Nella pagina `/dashboard/admin/user-management/page.tsx`:
+        *   Aggiungere un campo di input e un pulsante "Salva" (o un modale di modifica) per ogni utente nella tabella per cambiare il `tokenLimit` (giornaliero).
+        *   Gestire lo stato del `tokenLimit` in fase di modifica.
+
+---
+
+## Riepilogo Attività ConsulLegal AI - 19 Giugno
+
+**Obiettivo della giornata:** Testare lo stato dell'applicazione e risolvere bug.
+
+**✅ Attività Completate Oggi (19 Giugno):**
+
+1.  **Test Applicazione Locale:**
+    *   Avviata l'applicazione con successo in locale (`npm run dev`).
+
+2.  **Risoluzione Bug - Sincronizzazione Titolo Conversazione:**
+    *   **Problema Iniziale:** Dopo aver modificato il titolo di una conversazione nell'interfaccia chat e salvato, il titolo si aggiornava correttamente nella sidebar (dopo un click), ma nell'interfaccia chat tornava al valore precedente alla modifica quando si riselezionava la conversazione.
+    *   **Causa Radice Identificata:**
+        *   Frontend (`components/chat/chat-interface.tsx`): La logica `useEffect` che caricava i messaggi di una conversazione selezionata sovrascriveva il titolo con un valore di fallback o generato localmente, invece di usare il titolo aggiornato dal database.
+        *   Backend (`app/api/conversations/route.ts`): L'endpoint API `GET /api/conversations` non gestiva correttamente il parametro `?id=[ID_CONVERSAZIONE]` per recuperare una singola conversazione. Restituiva sempre l'intera lista, portando il frontend a non ricevere il titolo specifico aggiornato.
+    *   **Soluzione Implementata:**
+        *   Modificato `components/chat/chat-interface.tsx`: La logica `useEffect` ora recupera il titolo corretto della conversazione dall'endpoint API `/api/conversations?id=[ID_CONVERSAZIONE]` quando una conversazione viene selezionata.
+        *   Modificato `app/api/conversations/route.ts`: L'handler `GET` ora controlla la presenza del parametro `id` nella URL. Se presente, recupera e restituisce i dettagli (incluso il titolo) della singola conversazione specificata. Altrimenti, restituisce la lista di tutte le conversazioni dell'utente.
+    *   **Stato:** Il bug è stato risolto. Il titolo della conversazione ora si sincronizza correttamente tra l'interfaccia chat e la sidebar.
+
+3.  **Pianificazione Deployment:**
+    *   Discussi i passaggi e le piattaforme consigliate per il deployment dell'applicazione Next.js online:
+        *   **Hosting Frontend:** Vercel (integrazione ottimale con Next.js).
+        *   **Database Cloud (PostgreSQL):** Supabase o Neon (piani gratuiti e facile integrazione con Prisma).
+        *   **Passaggi Chiave:** Push del codice su GitHub, creazione e configurazione del database cloud, deploy su Vercel, configurazione delle variabili d'ambiente in produzione.
+
+---
+
+### 🚀 Prossimi Passi (Deployment Applicazione):
+
+L'obiettivo principale è rendere l'applicazione accessibile online.
+
+1.  **Preparazione Codice e Repository:**
+    *   Assicurarsi che tutto il codice sia aggiornato e committato su un repository GitHub (privato o pubblico a seconda delle preferenze).
+
+2.  **Configurazione Database Cloud (es. Supabase/Neon):**
+    *   Creare un account sulla piattaforma scelta (Supabase/Neon).
+    *   Creare un nuovo progetto e un database PostgreSQL.
+    *   Ottenere la stringa di connessione del database (`DATABASE_URL` per la produzione).
+    *   Eseguire le migrazioni di Prisma sul database cloud per creare lo schema: `npx prisma migrate deploy`.
+
+3.  **Deployment su Vercel:**
+    *   Creare un account su Vercel.
+    *   Collegare l'account Vercel al repository GitHub.
+    *   Importare il progetto ConsuLegal AI su Vercel.
+    *   Configurare le variabili d'ambiente nel pannello di controllo di Vercel:
+        *   `DATABASE_URL`: La stringa di connessione del database cloud.
+        *   `OPENAI_API_KEY`: La tua chiave API OpenAI.
+        *   `NEXTAUTH_SECRET`: Una nuova stringa segreta per NextAuth in produzione (può essere generata con `openssl rand -hex 32`).
+        *   `NEXTAUTH_URL`: L'URL pubblico che Vercel assegnerà all'applicazione (es. `https://nome-progetto.vercel.app`).
+
+4.  **Test del Deployment:**
+    *   Verificare che l'applicazione sia accessibile online e che tutte le funzionalità (autenticazione, chat, gestione titoli) operino correttamente con il database cloud.
+        *   Al salvataggio, chiamare l'endpoint `PUT /api/admin/users/[userId]/subscription`.
+        *   Aggiornare la UI con il nuovo valore e fornire feedback (messaggio di successo/errore).
+
+Buon proseguimento!

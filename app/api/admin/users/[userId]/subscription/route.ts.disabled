@@ -1,0 +1,109 @@
+import { NextRequest, NextResponse } from "next/server";
+import { PrismaClient } from "@prisma/client";
+import { auth } from "@/auth"; // Usando l'alias @ per la root del progetto
+
+const prisma = new PrismaClient();
+
+interface RequestBody {
+  tokenLimit?: number;
+  // Aggiungi qui altri campi aggiornabili in futuro, es. plan, status
+}
+
+export async function PUT(
+  req: NextRequest,
+  context: { params: { userId: string } }
+) {
+  // TUTTO IL CORPO DELLA FUNZIONE COMMENTATO TEMPORANEAMENTE
+  /*
+  try {
+    const session = await auth();
+
+    if (!session || !session.user) {
+      return NextResponse.json({ error: "Non autorizzato" }, { status: 401 });
+    }
+
+    if (session.user.role !== "ADMIN") {
+      return NextResponse.json(
+        { error: "Accesso negato. Riservato agli amministratori." },
+        { status: 403 }
+      );
+    }
+
+    const { userId } = context.params;
+    if (!userId) {
+      return NextResponse.json(
+        { error: "ID utente mancante nel percorso." },
+        { status: 400 }
+      );
+    }
+
+    const body = await req.json() as RequestBody;
+    const { tokenLimit } = body;
+
+    if (tokenLimit === undefined) {
+      return NextResponse.json(
+        { error: "Il campo 'tokenLimit' è richiesto nel corpo della richiesta." },
+        { status: 400 }
+      );
+    }
+
+    if (typeof tokenLimit !== 'number' || tokenLimit < 0 || !Number.isInteger(tokenLimit)) {
+      return NextResponse.json(
+        { error: "'tokenLimit' deve essere un numero intero non negativo." },
+        { status: 400 }
+      );
+    }
+
+    // Verifica se l'utente esiste
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!targetUser) {
+      return NextResponse.json({ error: "Utente non trovato." }, { status: 404 });
+    }
+
+    // Trova e aggiorna l'abbonamento dell'utente
+    // Si assume che un utente abbia al massimo un abbonamento (grazie a @unique su userId in Subscription)
+    const updatedSubscription = await prisma.subscription.update({
+      where: {
+        userId: userId, 
+      },
+      data: {
+        tokenLimit: tokenLimit,
+        // Aggiungi qui altri campi da aggiornare se necessario
+      },
+    });
+
+    if (!updatedSubscription) {
+      // Questo caso potrebbe verificarsi se l'utente non ha un abbonamento da aggiornare
+      // Potremmo volerlo creare, ma per ora restituiamo un errore.
+      return NextResponse.json(
+        { error: "Abbonamento non trovato per l'utente specificato. Impossibile aggiornare." }, 
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(updatedSubscription);
+
+  } catch (error: any) {
+    console.error(`Errore nell'API PUT /api/admin/users/${context.params.userId}/subscription:`, error);
+    
+    if (error.code === 'P2025') { // Codice errore Prisma per record non trovato durante l'update
+        return NextResponse.json(
+            { error: "Abbonamento non trovato per l'utente specificato. Impossibile aggiornare." }, 
+            { status: 404 }
+          );
+    }
+    
+    return NextResponse.json(
+      { 
+        error: "Si è verificato un errore durante l'aggiornamento dell'abbonamento.",
+        details: error.message 
+      },
+      { status: 500 }
+    );
+  }
+  */
+  return NextResponse.json({ message: "PUT handler temporarily disabled for testing" });
+}
