@@ -18,7 +18,8 @@ export async function middleware(request: NextRequest) {
     '/tailwind-fix-test',// Added test page
     '/minimal-test',     // Added test page
     '/direct-css-test',  // Added test page
-    '/final-test'        // Added test page
+    '/final-test',       // Added test page
+    '/pricing'           // Make pricing page public
   ];
 
   // Check if the current path is public
@@ -34,7 +35,8 @@ export async function middleware(request: NextRequest) {
   });
 
   // Redirect authenticated users from login/register to dashboard
-  if (token && (pathname === '/login' || pathname === '/register')) {
+  // Redirect authenticated users from login, register, or the root page to the dashboard
+  if (token && (pathname === '/login' || pathname === '/register' || pathname === '/')) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 

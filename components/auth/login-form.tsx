@@ -29,7 +29,7 @@ export function LoginForm() {
       });
 
       if (result?.error) {
-        setError(result.error);
+        setError("Credenziali non valide. Riprova.");
       } else {
         router.refresh();
         router.push("/dashboard");

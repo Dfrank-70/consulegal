@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import Link from "next/link";
-import { useSession, signOut } from "next-auth/react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { logout } from "@/app/dashboard/actions";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, User, Settings, LogOut, X, Users } from "lucide-react";
+import { User, Settings, LogOut, X, Users, PlusCircle } from "lucide-react";
 
-interface Conversation {
+export interface Conversation {
   id: string;
   title: string | null;
   createdAt: string;
@@ -16,21 +17,19 @@ interface Conversation {
 interface DashboardSidebarProps {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
+  initialConversations: Conversation[];
 }
 
-export function DashboardSidebar({ sidebarOpen, setSidebarOpen }: DashboardSidebarProps) {
+export function DashboardSidebar({ sidebarOpen, setSidebarOpen, initialConversations }: DashboardSidebarProps) {
   const { data: session } = useSession();
   const pathname = usePathname();
-  const router = useRouter(); // Potrebbe servire per navigazione programmatica
   const searchParams = useSearchParams();
   const currentConversationId = searchParams?.get('conversationId');
 
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [isLoadingConversations, setIsLoadingConversations] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const conversations = initialConversations;
 
   const baseNavigation = [
-    { name: "Chat", href: "/dashboard", icon: MessageSquare },
+    { name: "Nuova Chat", href: "/dashboard", icon: PlusCircle },
     { name: "Profilo", href: "/dashboard/profile", icon: User },
     { name: "Impostazioni", href: "/dashboard/settings", icon: Settings },
   ];
@@ -44,34 +43,6 @@ export function DashboardSidebar({ sidebarOpen, setSidebarOpen }: DashboardSideb
       icon: Users,
     });
   }
-
-  useEffect(() => {
-    const fetchConversations = async () => {
-      setIsLoadingConversations(true);
-      setFetchError(null);
-      try {
-        const response = await fetch('/api/conversations', { cache: 'no-store' });
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Errore nel recupero delle conversazioni' }));
-          throw new Error(errorData.error || 'Errore nel recupero delle conversazioni');
-        }
-        const data = await response.json();
-        setConversations(data);
-      } catch (error) {
-        console.error("Fetch error:", error);
-        setFetchError(error instanceof Error ? error.message : 'Errore sconosciuto');
-      } finally {
-        setIsLoadingConversations(false);
-      }
-    };
-
-    if (session?.user) {
-      fetchConversations();
-    } else if (session === null) {
-      setIsLoadingConversations(false);
-      setConversations([]);
-    }
-  }, [session?.user, pathname, searchParams]);
 
   const commonSidebarContent = (isMobile: boolean) => (
     <>
@@ -91,7 +62,10 @@ export function DashboardSidebar({ sidebarOpen, setSidebarOpen }: DashboardSideb
       </div>
       <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
         {navigation.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive = item.name === 'Nuova Chat'
+            ? pathname === item.href && !currentConversationId
+            : pathname === item.href;
+
           return (
             <Link
               key={item.name}
@@ -112,9 +86,7 @@ export function DashboardSidebar({ sidebarOpen, setSidebarOpen }: DashboardSideb
           <h3 className="px-3 text-xs font-semibold uppercase text-muted-foreground tracking-wider mb-2">
             Le Tue Consulenze
           </h3>
-          {isLoadingConversations && <p className="px-3 text-sm text-muted-foreground">Caricamento...</p>}
-          {fetchError && <p className="px-3 text-sm text-destructive">Errore: {fetchError}</p>}
-          {!isLoadingConversations && !fetchError && conversations.length === 0 && (
+          {conversations.length === 0 && (
             <p className="px-3 text-sm text-muted-foreground">Nessuna consulenza trovata.</p>
           )}
           <div className="space-y-1">
@@ -142,29 +114,29 @@ export function DashboardSidebar({ sidebarOpen, setSidebarOpen }: DashboardSideb
         <p className="text-sm text-muted-foreground mb-2 truncate">
           {session?.user?.email}
         </p>
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full justify-start"
-          onClick={() => signOut({ callbackUrl: "/" })}
-        >
-          <LogOut className="mr-2 h-4 w-4" />
-          Logout
-        </Button>
+        <form action={logout}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full justify-start"
+              type="submit"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Logout
+            </Button>
+          </form>
       </div>
     </>
   );
 
   return (
     <>
-      {/* Mobile sidebar */}
       <div className={`fixed inset-y-0 left-0 w-64 bg-card border-r flex flex-col transform transition-transform ease-in-out duration-300 lg:hidden ${
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
-      }`}>
+      } z-40`}>
         {commonSidebarContent(true)}
       </div>
 
-      {/* Desktop sidebar */}
       <div className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 border-r bg-card">
          {commonSidebarContent(false)}
       </div>

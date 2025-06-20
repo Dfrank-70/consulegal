@@ -42,7 +42,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         });
 
         if (!user || !user.password) {
-          throw new Error("Utente non trovato");
+          return null;
         }
 
         if (user.isBlocked) {
@@ -55,7 +55,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         );
 
         if (!isPasswordMatch) {
-          throw new Error("Password non corretta");
+          return null;
         }
 
         return {

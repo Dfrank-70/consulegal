@@ -9,7 +9,10 @@ export default function Home() {
       <header className="py-6 px-4 md:px-8 bg-background border-b">
         <div className="container mx-auto flex justify-between items-center">
           <h1 className="text-2xl font-bold">ConsulLegal AI</h1>
-          <div className="space-x-4">
+          <div className="space-x-2 sm:space-x-4">
+            <Link href="/pricing">
+              <Button variant="ghost" size="sm">Piani</Button>
+            </Link>
             <Link href="/login">
               <Button variant="outline" size="sm">Accedi</Button>
             </Link>
@@ -35,11 +38,11 @@ export default function Home() {
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
               </Link>
-              {/* <Link href="/pricing">
+              <Link href="/pricing">
                 <Button variant="outline" size="lg" className="px-8">
                   Scopri i Piani
                 </Button>
-              </Link> */}
+              </Link>
             </div>
           </div>
         </section>

@@ -4,6 +4,7 @@ import "./globals.css"; // Unico file CSS con configurazioni Tailwind
 
 import { SessionProvider } from "@/components/providers/session-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { Toaster } from "@/components/ui/sonner";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -31,6 +32,7 @@ disableTransitionOnChange>
           <SessionProvider>
             {children}
           </SessionProvider>
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>
