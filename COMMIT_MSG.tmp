@@ -1,0 +1,18 @@
+feat: Stabilizzazione di Auth, Webhook e Frontend
+
+Questo commit risolve una serie di problemi critici che impedivano il corretto funzionamento dell'applicazione.
+
+- Fix Webhook Stripe:
+  - Corretta la conversione dei timestamp di Stripe (moltiplicando per 1000) per evitare errori di "Invalid Date".
+  - Reso il webhook handler più robusto gestendo i campi opzionali (`current_period_start`, `current_period_end`) con type casting, eliminando errori di tipo e garantendo il salvataggio degli abbonamenti.
+
+- Fix Autenticazione e Registrazione:
+  - Implementata e pulita la configurazione di `next-auth` in `auth.ts`.
+  - Corretto e semplificato l'endpoint di registrazione utente (`/api/auth/register`), rimuovendo codice duplicato e implementando il corretto hashing delle password.
+
+- Fix Errori Frontend:
+  - Risolto l'errore `ClientFetchError` (race condition) nel componente `dashboard-sidebar` utilizzando lo stato `status` di `useSession` per attendere l'autenticazione prima di caricare i dati dell'abbonamento.
+  - Risolto l'errore di idratazione ("Hydration Failed") centralizzando tutti i provider client-side (`ThemeProvider`, `SessionProvider`, `Toaster`) in un unico componente `Providers.tsx`, separando nettamente la logica server-side da quella client-side.
+
+- Refactoring Generale:
+  - Migliorata la struttura del layout e dei provider per allinearla alle best practice di Next.js 14.
