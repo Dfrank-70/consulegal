@@ -39,16 +39,39 @@ export function ChatInterface({ selectedConversationId }: ChatInterfaceProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const startNewConversation = () => {
-    setMessages([]);
-    setCurrentConversationId(null);
-    setConversationTitle(null);
-    setTokenCount({ input: 0, output: 0 });
+  const startNewConversation = async () => {
+    setIsLoading(true);
     setError(null);
-    // Consider updating URL to /dashboard if not handled by parent
-    // if (window.location.search.includes("conversationId")) {
-    //   window.history.pushState({}, '', '/dashboard');
-    // }
+    try {
+      const response = await fetch('/api/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Nuova Consulenza' }), // Puoi anche ometterlo per usare il default
+      });
+
+      if (!response.ok) {
+        throw new Error('Errore nella creazione della nuova consulenza');
+      }
+
+      const newConversation = await response.json();
+
+      // Aggiorna la sidebar e naviga alla nuova chat
+      router.push(`/dashboard?conversationId=${newConversation.id}`);
+      router.refresh();
+
+      // Imposta lo stato per la nuova chat e attiva la modifica del titolo
+      setCurrentConversationId(newConversation.id);
+      setConversationTitle(newConversation.title);
+      setMessages([]);
+      setTokenCount({ input: 0, output: 0 });
+      setEditableTitle(newConversation.title);
+      setIsEditingTitle(true);
+
+    } catch (err: any) {
+      setError(err.message || 'Impossibile creare una nuova consulenza.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {

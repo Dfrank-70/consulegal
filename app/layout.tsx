@@ -2,9 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css"; // Unico file CSS con configurazioni Tailwind
 
-import { SessionProvider } from "@/components/providers/session-provider";
-import { ThemeProvider } from "@/components/providers/theme-provider";
-import { Toaster } from "@/components/ui/sonner";
+import { Providers } from "@/components/providers";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -24,16 +22,7 @@ export default function RootLayout({
   return (
     <html lang="it" suppressHydrationWarning>
       <body className={`${inter.variable} antialiased`}>
-        <ThemeProvider 
-attribute="class" 
-defaultTheme="system" 
-enableSystem 
-disableTransitionOnChange>
-          <SessionProvider>
-            {children}
-          </SessionProvider>
-          <Toaster />
-        </ThemeProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

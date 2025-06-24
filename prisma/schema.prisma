@@ -49,6 +49,7 @@ model Conversation {
   userId    String
   title     String?
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages Message[]
@@ -116,4 +117,16 @@ enum MessageRole {
 enum UserType {
   PRIVATE
   COMPANY
+}
+
+model Plan {
+  id            String   @id @default(cuid())
+    name          String   @unique // e.g., "Light", "Medium", "Advanced"
+  price         Float    // The monthly price of the plan
+  description   String?
+  features      String[] // List of features for this plan
+  stripePriceId String   @unique // ID del prezzo su Stripe (price_...)
+  isActive      Boolean  @default(true) // To easily enable/disable plans
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }

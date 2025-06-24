@@ -38,28 +38,39 @@ export async function POST(req: NextRequest) {
     // Per maggiore robustezza contro problemi di inferenza, creiamo una nuova var.
     const confirmedUser: PrismaUser = userFromDb;
 
-    // 2. Controlla se l'utente ha già uno stripeCustomerId
+    // 2. Controlla e valida lo stripeCustomerId esistente
     let currentStripeCustomerId = confirmedUser.stripeCustomerId;
 
+    if (currentStripeCustomerId) {
+      try {
+        const customer = await stripe.customers.retrieve(currentStripeCustomerId);
+        if ((customer as any).deleted) {
+          console.log(`Stripe customer ${currentStripeCustomerId} is deleted. Creating a new one.`);
+          currentStripeCustomerId = null; // Forza la creazione di un nuovo cliente
+        }
+      } catch (error) {
+        console.error(`Failed to retrieve Stripe customer ${currentStripeCustomerId}. It might be from a different environment (live vs. test). Creating a new one.`);
+        currentStripeCustomerId = null; // Forza la creazione di un nuovo cliente
+      }
+    }
+
+    // 3. Se l'utente non ha uno stripeCustomerId valido, creane uno nuovo
     if (!currentStripeCustomerId) {
-      // 3. Se non ce l'ha, crea un nuovo cliente Stripe
       const customer = await stripe.customers.create({
-        email: session.user.email!, // Aggiunta ! per asserire che email esiste, dato che è controllato prima
+        email: session.user.email!,
         name: session.user.name || undefined,
+        metadata: {
+          userId: confirmedUser.id,
+        }
       });
       const newStripeCustomerId = customer.id;
 
-      // 4. Prepara i dati per l'aggiornamento con tipo esplicito
-      const updateData: Prisma.UserUpdateInput = {
-        stripeCustomerId: newStripeCustomerId,
-      };
-
-      // Salva il nuovo stripeCustomerId nel tuo database
       await prisma.user.update({
         where: { id: confirmedUser.id },
-        data: updateData,
+        data: { stripeCustomerId: newStripeCustomerId },
       });
-      currentStripeCustomerId = newStripeCustomerId; // Aggiorna la variabile locale
+      
+      currentStripeCustomerId = newStripeCustomerId;
     }
 
     // Assicurati che currentStripeCustomerId sia definito prima di procedere

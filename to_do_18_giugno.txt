@@ -98,6 +98,44 @@ L'obiettivo è verificare che la logica dei limiti giornalieri e la loro gestion
     *   Nella pagina `/dashboard/admin/user-management/page.tsx`:
         *   Aggiungere un campo di input e un pulsante "Salva" (o un modale di modifica) per ogni utente nella tabella per cambiare il `tokenLimit` (giornaliero).
         *   Gestire lo stato del `tokenLimit` in fase di modifica.
+---
+
+## Riepilogo Attività - 20 Giugno
+
+**Obiettivo:** Risolvere il problema della pagina dei prezzi che non mostrava i piani tariffari e renderla dinamica.
+
+**Stato:** **COMPLETATO CON SUCCESSO.**
+
+### ✅ Attività Completate:
+
+1.  **Refactoring Pagina Prezzi (`/pricing`):**
+    *   La pagina è stata completamente refattorizzata per caricare i dati dei piani tariffari dinamicamente da un nuovo endpoint API (`/api/plans`).
+    *   Questo risolve il problema dei dati hardcoded e rende la gestione dei piani centralizzata.
+
+2.  **Correzione Schema e Database:**
+    *   Identificato e corretto un problema fondamentale nello schema Prisma: il modello `Plan` mancava del campo `price`.
+    *   Lo schema è stato aggiornato e la migrazione del database è stata eseguita con successo.
+
+3.  **Implementazione Seeding del Database:**
+    *   Creato uno script di seeding (`prisma/seed.ts`) per popolare automaticamente la tabella `Plan` con i dati necessari.
+    *   Questo garantisce che l'ambiente di sviluppo abbia sempre i dati dei piani disponibili, evitando pagine vuote.
+    *   Aggiunto un comando `npm run db:seed` per una facile esecuzione.
+
+4.  **Aggiornamento Dati Piani Tariffari:**
+    *   Lo script di seeding è stato aggiornato per utilizzare i nomi e i prezzi corretti forniti dall'utente:
+        *   `ConsulLight`: €9.99
+        *   `ConsulPro`: €29.00
+        *   `ConsulExpress`: €79.99
+    *   Lo script ora cancella i vecchi piani prima di inserirne di nuovi per garantire la coerenza.
+
+---
+
+### ⏳ Prossimi Passi (Alla Ripresa):
+
+1.  **Finalizzare lo Script di Seeding:**
+    *   **Azione Richiesta dall'Utente:** Fornire gli **ID dei prezzi di Stripe** per i tre piani (`ConsulLight`, `ConsulPro`, `ConsulExpress`).
+    *   **Azione da Parte Mia:** Inserire gli ID forniti nello script `prisma/seed.ts` al posto dei segnaposto attuali.
+    *   Eseguire un'ultima volta il comando `npm run db:seed` per popolare il database con i dati definitivi e completi.
 
 ---
 
