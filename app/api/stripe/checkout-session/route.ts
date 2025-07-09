@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Price ID is required' }, { status: 400 });
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3002';
 
     // 1. Trova l'utente nel database
     const userFromDb: PrismaUser | null = await prisma.user.findUnique({
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
       mode: 'subscription',
       success_url: `${appUrl}/dashboard?new-subscription=true`,
       cancel_url: `${appUrl}/pricing`,
-      client_reference_id: userId,
+      client_reference_id: confirmedUser.id,
       // metadata: { 
       //   userId: user.id,
       // },

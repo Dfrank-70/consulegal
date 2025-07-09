@@ -22,19 +22,59 @@ function countTokens(text: string): number {
 }
 
 // Funzione per generare il messaggio di sistema per l'AI
-async function constructSystemMessage(userId: string, conversationId: string): Promise<{ role: string, content: string }> {
+async function constructSystemMessage(userId: string, existingMessages: { content: string }[]): Promise<{ role: "system", content: string }> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { customInstructions: true },
   });
+
+  // 1. Trova il numero di nota più alto usato finora
+  let highestNoteNumber = 0;
+  const noteRegex = /\(nota (\d+)\)/g;
+  for (const message of existingMessages) {
+    const matches = message.content.matchAll(noteRegex);
+    for (const match of matches) {
+      const noteNumber = parseInt(match[1], 10);
+      if (noteNumber > highestNoteNumber) {
+        highestNoteNumber = noteNumber;
+      }
+    }
+  }
+  const nextNoteNumber = highestNoteNumber + 1;
+
+  // 2. Costruisci le istruzioni dinamiche
+  const baseInstructions = `Sei ConsuLegal, un assistente legale virtuale per professionisti del mercato italiano. Rispondi in modo chiaro, preciso e formale.
+
+  --- REGOLE DI FORMATTAZIONE ASSOLUTAMENTE OBBLIGATORIE ---
+  DEVI SEGUIRE QUESTE REGOLE ALLA LETTERA. NON SONO SUGGERIMENTI.
   
+  1.  **CITAZIONI NEL TESTO:** Quando citi una fonte, DEVI usare il formato esatto '(nota X)'. Non usare '[1]', 'nota 1', o altri formati.
+  2.  **SEZIONE NOTE:** Alla fine della tua risposta, DEVI includere una sezione che inizia ESATTAMENTE con la parola "Note:", seguita dai due punti. Non usare "Fonti:", "Riferimenti:", o altro.
+  3.  **FORMATO NOTE:** Nella sezione "Note:", ogni fonte DEVE essere elencata nel formato esatto '(X) Testo della fonte...'.
+  4.  **NUMERAZIONE PROGRESSIVA:** La numerazione è OBBLIGATORIAMENTE progressiva. La prossima nota che devi usare in questa risposta è (nota ${nextNoteNumber}). Le successive saranno (nota ${nextNoteNumber + 1}), e così via.
+  
+  --- ESEMPIO DI FORMATTAZIONE CORRETTA ---
+  Questo è un testo di esempio (nota ${nextNoteNumber}). Questo è un altro pezzo di testo con una citazione (nota ${nextNoteNumber + 1}).
+  
+  Note:
+  (${nextNoteNumber}) Art. 123 del Codice Civile.
+  (${nextNoteNumber + 1}) Sentenza Cass. n. 456/2023.
+  
+  --- ESEMPIO DI FORMATTAZIONE SBAGLIATA (DA NON USARE MAI) ---
+  Questo è un testo [1].
+  Fonti:
+  1. Art. 123...
+  
+  SE NON SEGUI QUESTE REGOLE, LA TUA RISPOSTA È INUTILE. SEGUILE.
+  
+  RICORDA: LA SEZIONE 'Note:' ALLA FINE DELLA RISPOSTA È OBBLIGATORIA.`;
+  const customUserInstructions = user?.customInstructions
+    ? `\n\nISTRUZIONI SPECIFICHE AGGIUNTIVE PER QUESTO UTENTE:\n${user.customInstructions}`
+    : "";
+
   return {
-    role: "system", 
-    content: `Sei un assistente legale AI specializzato per il mercato italiano. ${
-      user?.customInstructions 
-        ? `\n\nIstruzioni specifiche: ${user.customInstructions}` 
-        : ""
-    }`
+    role: "system",
+    content: `${baseInstructions}${customUserInstructions}`,
   };
 }
 
@@ -57,20 +97,20 @@ export async function POST(req: NextRequest) {
     
     const userId = session.user.id as string;
 
-    // --- INIZIO CONTROLLO LIMITE TOKEN ---
+    // --- INIZIO BLOCCO DI VALIDAZIONE UTENTE E ABBONAMENTO ---
 
-    // 1. Recupera utente, abbonamento e verifica se è bloccato
+    // 1. Recupera utente e abbonamento associato
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
-        subscription: true, // Carichiamo i dati dell'abbonamento per accedere al tokenLimit
+        subscription: true,
       },
     });
 
+    // 2. Controlli di base sull'utente
     if (!user) {
       return NextResponse.json({ error: "Utente non trovato" }, { status: 404 });
     }
-
     if (user.isBlocked) {
       return NextResponse.json(
         { error: "Il tuo account è stato bloccato. Contatta l'amministratore." },
@@ -78,46 +118,47 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Controlla se l'utente ha un abbonamento attivo
-    if (!user.subscription) {
+    // 3. Blocco di validazione dell'abbonamento e del limite token
+    const subscription = user.subscription;
+    const isSubscribed = 
+        subscription &&
+        subscription.currentPeriodEnd &&
+        subscription.currentPeriodEnd.getTime() > Date.now();
+
+    if (isSubscribed) {
+      const dailyTokenLimit = subscription.tokenLimit;
+
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const todayEnd = new Date();
+      todayEnd.setHours(23, 59, 59, 999);
+
+      const usageAggregation = await prisma.tokenUsage.aggregate({
+        _sum: {
+          tokensUsed: true,
+        },
+        where: {
+          userId: userId,
+          date: { gte: todayStart, lte: todayEnd },
+        },
+      });
+      const totalTokensUsedToday = usageAggregation._sum.tokensUsed || 0;
+
+      if (totalTokensUsedToday >= dailyTokenLimit) {
+        return NextResponse.json(
+          { error: `Hai raggiunto il limite giornaliero di ${dailyTokenLimit.toLocaleString('it-IT')} token. Potrai utilizzare nuovamente il servizio domani o contattare l'assistenza per un upgrade.` },
+          { status: 429 } // Too Many Requests
+        );
+      }
+    } else {
+      // Se l'abbonamento non esiste o non è attivo, blocca la richiesta
       return NextResponse.json(
         { error: "Nessun abbonamento attivo trovato. Per favore, sottoscrivi un piano." },
         { status: 403 } // Forbidden
       );
     }
 
-    // 3. Calcola il totale dei token usati dall'utente OGGI
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
-
-    const usageAggregation = await prisma.tokenUsage.aggregate({
-      _sum: {
-        tokensUsed: true,
-      },
-      where: {
-        userId: userId,
-        date: {
-          gte: todayStart,
-          lte: todayEnd,
-        },
-      },
-    });
-    const totalTokensUsedToday = usageAggregation._sum.tokensUsed || 0;
-
-    const dailyTokenLimit = user.subscription.tokenLimit;
-
-    // 4. Controlla se l'utente ha superato il limite giornaliero
-    if (totalTokensUsedToday >= dailyTokenLimit) {
-      return NextResponse.json(
-        { error: `Hai raggiunto il limite giornaliero di ${dailyTokenLimit.toLocaleString('it-IT')} token. Potrai utilizzare nuovamente il servizio domani o contattare l'assistenza per un upgrade.` },
-        { status: 429 } // 429 Too Many Requests è appropriato per i limiti di utilizzo
-      );
-    }
-
-    // --- FINE CONTROLLO LIMITE TOKEN ---
+    // --- FINE BLOCCO DI VALIDAZIONE ---
     
     // Create or get conversation
     let conversation;
@@ -175,7 +216,7 @@ export async function POST(req: NextRequest) {
       content: msg.content,
     }));
 
-    const systemMessage = await constructSystemMessage(userId, conversationId);
+    const systemMessage = await constructSystemMessage(userId, messages);
 
     const openaiClient = getOpenAIClient();
     const completion = await openaiClient.chat.completions.create({

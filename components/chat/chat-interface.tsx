@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation"; // Import useRouter
+import { useRouter } from "next/navigation";
 import { MessageList } from "./message-list";
 import { MessageInput } from "./message-input";
 import { Button } from "@/components/ui/button";
+import Link from 'next/link';
 import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Terminal, Edit3 } from "lucide-react"; // Added Edit3 icon
+import { Terminal, Edit3 } from "lucide-react";
 
 export type Message = {
   id: string;
@@ -21,13 +22,15 @@ export type Message = {
 
 interface ChatInterfaceProps {
   selectedConversationId?: string | null;
+  isSubscribed: boolean;
 }
 
-export function ChatInterface({ selectedConversationId }: ChatInterfaceProps) {
-  const router = useRouter(); // Initialize useRouter
+export function ChatInterface({ selectedConversationId, isSubscribed }: ChatInterfaceProps) {
+  const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showSubscriptionAlert, setShowSubscriptionAlert] = useState(!isSubscribed);
   const [tokenCount, setTokenCount] = useState({ input: 0, output: 0 });
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [conversationTitle, setConversationTitle] = useState<string | null>(null);
@@ -40,13 +43,17 @@ export function ChatInterface({ selectedConversationId }: ChatInterfaceProps) {
   }, [messages]);
 
   const startNewConversation = async () => {
+    if (!isSubscribed) {
+      setShowSubscriptionAlert(true);
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
       const response = await fetch('/api/conversations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'Nuova Consulenza' }), // Puoi anche ometterlo per usare il default
+        body: JSON.stringify({ title: 'Nuova Consulenza' }),
       });
 
       if (!response.ok) {
@@ -54,12 +61,9 @@ export function ChatInterface({ selectedConversationId }: ChatInterfaceProps) {
       }
 
       const newConversation = await response.json();
-
-      // Aggiorna la sidebar e naviga alla nuova chat
       router.push(`/dashboard?conversationId=${newConversation.id}`);
       router.refresh();
 
-      // Imposta lo stato per la nuova chat e attiva la modifica del titolo
       setCurrentConversationId(newConversation.id);
       setConversationTitle(newConversation.title);
       setMessages([]);
@@ -75,71 +79,69 @@ export function ChatInterface({ selectedConversationId }: ChatInterfaceProps) {
   };
 
   useEffect(() => {
-    if (selectedConversationId) {
-      if (selectedConversationId === currentConversationId) return; // Evita ricaricamenti inutili
+    setShowSubscriptionAlert(!isSubscribed);
+  }, [isSubscribed]);
 
-      const fetchConversationMessages = async () => {
+  useEffect(() => {
+    const loadConversation = async () => {
+      if (!isSubscribed) {
+        setMessages([]);
+        setCurrentConversationId(null);
+        setConversationTitle("Nuova Consulenza");
+        setError(null);
+        return;
+      }
+
+      if (selectedConversationId) {
         setIsLoading(true);
         setError(null);
-        setMessages([]);
-        setTokenCount({ input: 0, output: 0 });
-
         try {
-          const response = await fetch(`/api/chat?conversationId=${selectedConversationId}`);
-          if (!response.ok) {
-            let errorData;
-            try {
-              errorData = await response.json();
-            } catch (e) { /* no-op */ }
-            throw new Error(errorData?.error || `Errore ${response.status} nel caricamento della conversazione.`);
+          const messagesResponse = await fetch(`/api/chat?conversationId=${selectedConversationId}`);
+          if (!messagesResponse.ok) {
+            const errorData = await messagesResponse.json().catch(() => null);
+            throw new Error(errorData?.error || 'Impossibile caricare i messaggi.');
           }
-          const loadedMessages: Message[] = await response.json();
-          
-          // Fetch conversation details (including title) separately or assume passed as prop
-          // This is a placeholder for fetching title. Ideally, title comes from parent or a dedicated API call.
-          try {
-            const convDetailsResponse = await fetch(`/api/conversations?id=${selectedConversationId}`);
-            if (convDetailsResponse.ok) {
-              const convDetails = await convDetailsResponse.json();
-              // The API should return a single conversation object when an ID is provided
-              setConversationTitle(convDetails.title || `Consulenza del ${new Date(loadedMessages[0]?.createdAt || Date.now()).toLocaleDateString()}`);
-            } else {
-               // Fallback title in case of error
-              setConversationTitle(`Consulenza ID: ${selectedConversationId.substring(0,8)}...`);
-            }
-          } catch (titleError) {
-            console.error("Errore nel recupero del titolo conversazione:", titleError);
-            setConversationTitle(`Consulenza ID: ${selectedConversationId.substring(0,8)}...`);
+          const loadedMessages: Message[] = await messagesResponse.json();
+
+          const convDetailsResponse = await fetch(`/api/conversations?id=${selectedConversationId}`);
+          let title = `Consulenza ID: ${selectedConversationId.substring(0, 8)}...`;
+          if (convDetailsResponse.ok) {
+            const convDetails = await convDetailsResponse.json();
+            title = convDetails.title || `Consulenza del ${new Date(loadedMessages[0]?.createdAt || Date.now()).toLocaleDateString()}`;
           }
 
-          setMessages(loadedMessages.map(m => ({...m, createdAt: new Date(m.createdAt) })));
+          setMessages(loadedMessages.map((m: any) => ({ ...m, createdAt: new Date(m.createdAt) })));
           setCurrentConversationId(selectedConversationId);
+          setConversationTitle(title);
 
           let totalInputTokens = 0;
           let totalOutputTokens = 0;
-          loadedMessages.forEach(msg => {
+          loadedMessages.forEach((msg: Message) => {
             totalInputTokens += msg.tokensIn || 0;
             totalOutputTokens += msg.tokensOut || 0;
           });
           setTokenCount({ input: totalInputTokens, output: totalOutputTokens });
 
         } catch (err: any) {
-          setError(err.message || "Impossibile caricare i messaggi della conversazione.");
+          setError(err.message || "Impossibile caricare la conversazione.");
+          setMessages([]);
           setCurrentConversationId(null);
           setConversationTitle(null);
         } finally {
           setIsLoading(false);
         }
-      };
-      fetchConversationMessages();
-    } else {
-      // Se selectedConversationId è null/undefined e non c'è già una conversazione attiva (nuova), resetta.
-      if (currentConversationId !== null) { // Evita di chiamare startNewConversation se è già una nuova chat
-        startNewConversation();
+      } else {
+        setMessages([]);
+        setCurrentConversationId(null);
+        setConversationTitle("Nuova Consulenza");
+        setError(null);
+        setTokenCount({ input: 0, output: 0 });
+        setIsLoading(false);
       }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedConversationId]);
+    };
+
+    loadConversation();
+  }, [selectedConversationId, isSubscribed]);
 
   const handleTitleClick = () => {
     if (currentConversationId) {
@@ -157,47 +159,31 @@ export function ChatInterface({ selectedConversationId }: ChatInterfaceProps) {
       setIsEditingTitle(false);
       return;
     }
-
     const oldTitle = conversationTitle;
-    // setConversationTitle(editableTitle.trim()); // Optimistic update spostato o gestito dalla risposta API
     setIsEditingTitle(false);
-    console.log('[ChatInterface] saveConversationTitle: Attempting to save title for', currentConversationId);
-
     try {
       const response = await fetch(`/api/conversations/${currentConversationId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: editableTitle.trim() }),
       });
-
-      console.log('[ChatInterface] saveConversationTitle: Response status:', response.status);
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('[ChatInterface] saveConversationTitle: Failed to update title:', errorData.error);
         setError(errorData.error || 'Errore durante l\'aggiornamento del titolo.');
-        setConversationTitle(oldTitle); // Rollback optimistic update
+        setConversationTitle(oldTitle);
         return;
       }
-      console.log('[ChatInterface] saveConversationTitle: Title updated successfully via API. Attempting router.refresh().');
-      const data = await response.json(); // Ottieni l'oggetto conversazione aggiornato
-      console.log('[ChatInterface] saveConversationTitle: API response data:', data);
-      setConversationTitle(data.title); // Usa il titolo dalla risposta API
-
-      // Titolo aggiornato con successo, aggiorna la lista sidebar
-      console.log('[ChatInterface] saveConversationTitle: Attempting router.refresh() after successful title update from API.');
+      const data = await response.json();
+      setConversationTitle(data.title);
       router.refresh();
-      console.log('[ChatInterface] saveConversationTitle: router.refresh() called.'); 
     } catch (error) {
-      console.error('[ChatInterface] saveConversationTitle: Error updating title:', error);
       setError('Errore di rete durante l\'aggiornamento del titolo.');
-      setConversationTitle(oldTitle); // Rollback optimistic update
+      setConversationTitle(oldTitle);
     }
   };
 
   const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      saveConversationTitle();
-    }
+    if (e.key === 'Enter') saveConversationTitle();
     if (e.key === 'Escape') {
       setIsEditingTitle(false);
       setEditableTitle(conversationTitle || "");
@@ -205,6 +191,10 @@ export function ChatInterface({ selectedConversationId }: ChatInterfaceProps) {
   };
   
   const handleSubmit = async (content: string) => {
+    if (!isSubscribed) {
+      setShowSubscriptionAlert(true);
+      return;
+    }
     if (!content.trim()) return;
     
     setIsLoading(true);
@@ -228,21 +218,20 @@ export function ChatInterface({ selectedConversationId }: ChatInterfaceProps) {
       
       if (!response.ok) {
         let errorData;
-        let errorMessageText = "Si è verificato un errore durante l'invio del messaggio.";
+        let errorMessageText = "Si è verificato un errore.";
         try {
           errorData = await response.json();
-          if (errorData && errorData.error) {
-            errorMessageText = errorData.error;
-          }
-        } catch (jsonError) {
-          console.error("Impossibile fare il parsing JSON della risposta di errore:", jsonError);
-          if (response.statusText) {
-            errorMessageText = `Errore: ${response.status} - ${response.statusText}`;
-          }
-        }
-        console.error("Errore API ricevuto:", errorMessageText, "Dettagli:", errorData || "Nessun dettaglio JSON");
-        setError(errorMessageText);
+          errorMessageText = errorData?.error || errorMessageText;
+        } catch (jsonError) { /* Ignore */ }
+        
         setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
+
+        if (errorMessageText.includes("Nessun abbonamento attivo")) {
+          setShowSubscriptionAlert(true);
+          setError(null);
+        } else {
+          setError(errorMessageText);
+        }
         return;
       }
       
@@ -250,9 +239,7 @@ export function ChatInterface({ selectedConversationId }: ChatInterfaceProps) {
 
       if (!currentConversationId && data.conversationId) {
         setCurrentConversationId(data.conversationId);
-        const newTitle = data.title || `Consulenza del ${new Date().toLocaleDateString("it-IT")}`;
-        setConversationTitle(newTitle);
-        // Update URL and refresh server data to update conversation list
+        setConversationTitle(data.title || `Consulenza del ${new Date().toLocaleDateString("it-IT")}`);
         router.push(`/dashboard?conversationId=${data.conversationId}`, { scroll: false });
         router.refresh();
       }
@@ -279,7 +266,6 @@ export function ChatInterface({ selectedConversationId }: ChatInterfaceProps) {
       }));
       
     } catch (networkError) {
-      console.error("Errore di rete o fetch:", networkError);
       const errorMsg = networkError instanceof Error ? networkError.message : "Errore di connessione di rete.";
       setError(errorMsg);
       setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
@@ -287,11 +273,10 @@ export function ChatInterface({ selectedConversationId }: ChatInterfaceProps) {
       setIsLoading(false);
     }
   };
-  
-  // startNewConversation è definita prima di useEffect
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
+      {/* Header */}
       <div className="flex items-center justify-between p-4 border-b">
         {isEditingTitle ? (
           <input 
@@ -323,9 +308,23 @@ export function ChatInterface({ selectedConversationId }: ChatInterfaceProps) {
           </Button>
         </div>
       </div>
-      
+
+      {/* Message Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 && !isLoading && !error && (
+        {showSubscriptionAlert ? (
+          <Alert variant="destructive" className="mb-4">
+            <Terminal className="w-4 h-4" />
+            <AlertTitle>Nessun Abbonamento Attivo</AlertTitle>
+            <AlertDescription>
+              Per iniziare una nuova conversazione, è necessario un abbonamento attivo.
+              <Button asChild variant="link" className="p-0 pl-1 h-auto">
+                <Link href="/dashboard/plans">Vedi i Piani</Link>
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
+        {messages.length === 0 && !isLoading && !error && !showSubscriptionAlert && (
           <Card className="p-8 text-center">
             <h2 className="text-xl font-bold mb-2">Benvenuto nella Consulenza Legale AI</h2>
             <p className="mb-4 text-muted-foreground">
@@ -333,6 +332,7 @@ export function ChatInterface({ selectedConversationId }: ChatInterfaceProps) {
             </p>
           </Card>
         )}
+
         {messages.length === 0 && !isLoading && error && (
            <Alert variant="destructive" className="mb-4">
             <Terminal className="h-4 w-4" />
@@ -342,24 +342,24 @@ export function ChatInterface({ selectedConversationId }: ChatInterfaceProps) {
             </AlertDescription>
           </Alert>
         )}
+        
         <MessageList messages={messages} />
         <div ref={messagesEndRef} />
       </div>
-      
+
+      {/* Input Area */}
       <div className="p-4 border-t">
-        {error && messages.length > 0 && ( // Mostra errore in basso solo se ci sono già messaggi o durante l'invio
+        {error && (
           <Alert variant="destructive" className="mb-4">
-            <Terminal className="h-4 w-4" />
+            <Terminal className="w-4 w-4" />
             <AlertTitle>Errore</AlertTitle>
-            <AlertDescription>
-              {error}
-            </AlertDescription>
+            <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
         <MessageInput 
           onSend={handleSubmit} 
-          isLoading={isLoading} 
-          onInputChange={() => setError(null)} 
+          isLoading={isLoading}
+          disabled={isLoading || !isSubscribed}
         />
       </div>
     </div>

@@ -8,7 +8,7 @@ export async function POST(req: Request) {
     const { email, password, name, userType, companyName, vatNumber, billingAddress, sdiCode } = body;
 
     if (!email || !password) {
-      return new NextResponse('Email and password are required', { status: 400 });
+      return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
     }
 
     const existingUser = await prisma.user.findUnique({
@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     });
 
     if (existingUser) {
-      return new NextResponse('User with this email already exists', { status: 409 });
+      return NextResponse.json({ error: 'User with this email already exists' }, { status: 409 });
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
@@ -40,6 +40,6 @@ export async function POST(req: Request) {
     return NextResponse.json(userWithoutPassword);
   } catch (error) {
     console.error('[REGISTER_POST]', error);
-    return new NextResponse('Internal Server Error', { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

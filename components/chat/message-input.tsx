@@ -8,10 +8,11 @@ import { Paperclip, Send } from "lucide-react";
 interface MessageInputProps {
   onSend: (message: string) => void;
   isLoading: boolean;
+  disabled?: boolean;
   onInputChange?: () => void; // Aggiunta nuova prop opzionale
 }
 
-export function MessageInput({ onSend, isLoading, onInputChange }: MessageInputProps) {
+export function MessageInput({ onSend, isLoading, disabled, onInputChange }: MessageInputProps) {
   const [message, setMessage] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -47,7 +48,7 @@ export function MessageInput({ onSend, isLoading, onInputChange }: MessageInputP
           onKeyDown={handleKeyDown}
           placeholder="Scrivi il tuo messaggio..."
           className="flex-1 min-h-[60px] resize-none"
-          disabled={isLoading}
+          disabled={isLoading || disabled}
         />
         <div className="flex flex-col space-y-2">
           <Button
@@ -63,7 +64,7 @@ export function MessageInput({ onSend, isLoading, onInputChange }: MessageInputP
             type="button"
             size="icon"
             onClick={handleSend}
-            disabled={!message.trim() || isLoading}
+            disabled={!message.trim() || isLoading || disabled}
           >
             {isLoading ? (
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />

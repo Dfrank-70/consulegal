@@ -28,7 +28,7 @@ async function main() {
   await prisma.plan.create({
     data: {
       name: 'ConsulPro',
-      price: 29.00,
+      price: 29.99,
       description: 'Perfetto per professionisti e un uso regolare.',
       features: [
         'Tutti i vantaggi del piano Light',

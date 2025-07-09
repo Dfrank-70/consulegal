@@ -1,66 +1,36 @@
-"use client";
-
-import { useState, useEffect } from "react";
-import { toast } from "sonner";
-import { useRouter, useSearchParams } from "next/navigation"; // Import useSearchParams
-import { useSession } from "next-auth/react";
+import { auth } from "@/auth";
 import { ChatInterface } from "@/components/chat/chat-interface";
-import { SubscriptionGate } from "@/components/chat/subscription-gate";
+import { getUserSubscription } from "@/lib/subscription";
 
-export default function DashboardPage() {
-  const router = useRouter();
-  const { data: session, status } = useSession();
-  const searchParams = useSearchParams();
-  const [hasActiveSubscription, setHasActiveSubscription] = useState<boolean | null>(null);
+export const dynamic = 'force-dynamic';
 
-  useEffect(() => {
-    if (searchParams?.get("new-subscription") === "true") {
-      toast.success("Abbonamento attivato con successo!", {
-        description: "Benvenuto a bordo! Ora hai accesso a tutte le funzionalità del tuo piano.",
-        duration: 5000,
-      });
-      router.replace("/dashboard", { scroll: false });
-    }
-  }, [searchParams, router]);
-
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/login");
-    } else if (status === "authenticated") {
-      const checkSubscription = async () => {
-        try {
-          const response = await fetch('/api/user/subscription-status');
-          const data = await response.json();
-          if (response.ok) {
-            setHasActiveSubscription(data.hasActiveSubscription);
-          } else {
-            setHasActiveSubscription(false);
-          }
-        } catch (error) {
-          console.error("Failed to fetch subscription status", error);
-          setHasActiveSubscription(false);
-        }
-      };
-      checkSubscription();
-    }
-  }, [status, router]);
-
-  if (status === "loading" || hasActiveSubscription === null) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-        <span className="ml-2">Caricamento...</span>
-      </div>
-    );
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: { [key: string]: string | string[] | undefined };
+}) {
+  // Attendere searchParams prima di utilizzarlo (Next.js 15 requirement)
+  const params = await searchParams;
+  const conversationId = params.conversationId;
+  
+  const session = await auth();
+  if (!session?.user?.id) {
+    // In a real app, you'd likely redirect to login
+    return <div>Non autorizzato</div>;
   }
+
+  const subscription = await getUserSubscription(session.user.id);
+  const isSubscribed = 
+    !!subscription &&
+    !!subscription.currentPeriodEnd &&
+    subscription.currentPeriodEnd.getTime() > Date.now();
 
   return (
     <div className="container mx-auto h-full">
-      {hasActiveSubscription ? (
-        <ChatInterface selectedConversationId={searchParams?.get("conversationId")} />
-      ) : (
-        <SubscriptionGate />
-      )}
+      <ChatInterface 
+        selectedConversationId={typeof conversationId === 'string' ? conversationId : null}
+        isSubscribed={isSubscribed} 
+      />
     </div>
   );
 }

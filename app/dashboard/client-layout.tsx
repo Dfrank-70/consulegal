@@ -1,18 +1,52 @@
 "use client";
 
-import React, { useState, Suspense } from "react";
+import React, { useState, Suspense, useEffect } from "react";
 import Link from "next/link";
 import { Menu } from "lucide-react";
 import { DashboardSidebar, type Conversation } from "@/components/dashboard/dashboard-sidebar";
+import { useSearchParams, useRouter } from "next/navigation";
+
+import { Subscription } from "@prisma/client";
+
+// Define a serializable subscription type that matches the data from the server
+export type SerializableSubscription = Omit<Subscription, 'createdAt' | 'updatedAt' | 'currentPeriodEnd'> & {
+  createdAt: string;
+  updatedAt: string;
+  currentPeriodEnd: string | null;
+  planName: string | null;
+};
 
 export function DashboardClientLayout({
   children,
   conversations,
+  subscription,
 }: {
   children: React.ReactNode;
   conversations: Conversation[];
+  subscription: SerializableSubscription | null;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  
+  // Handle new subscription parameter
+  useEffect(() => {
+    if (!searchParams) return;
+    
+    const newSubscription = searchParams.get('new-subscription');
+    if (newSubscription === 'true') {
+      // Remove the query parameter and refresh the page to get the latest subscription data
+      const url = new URL(window.location.href);
+      url.searchParams.delete('new-subscription');
+      
+      // Wait a moment to allow webhook processing to complete
+      const timer = setTimeout(() => {
+        window.location.href = url.toString();
+      }, 5000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [searchParams, router]);
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -28,6 +62,7 @@ export function DashboardClientLayout({
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
         initialConversations={conversations}
+        subscription={subscription}
       />
 
       <div className="lg:pl-64 flex flex-col flex-1">

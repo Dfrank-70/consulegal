@@ -14,8 +14,35 @@ export default async function DashboardLayout({
   headers(); // Force dynamic rendering
   const session = await auth();
   if (!session?.user?.id) {
-    redirect("/login");
+    return redirect("/login");
   }
+
+  // Check for active subscription
+  let subscription = await prisma.subscription.findFirst({
+    where: {
+      userId: session.user.id,
+    },
+    orderBy: {
+      createdAt: 'desc',
+    }
+  });
+
+  let planName: string | null = null;
+  if (subscription?.stripePriceId) {
+    const plan = await prisma.plan.findUnique({
+      where: {
+        stripePriceId: subscription.stripePriceId,
+      },
+      select: {
+        name: true,
+      }
+    });
+    if (plan) {
+      planName = plan.name;
+    }
+  }
+
+
 
   const conversations = await prisma.conversation.findMany({
     where: {
@@ -31,13 +58,25 @@ export default async function DashboardLayout({
     },
   });
 
-    const serializedConversations = conversations.map((c: { id: string; title: string | null; createdAt: Date }) => ({
-      ...c,
-      createdAt: c.createdAt.toISOString(),
+    const serializedConversations = conversations.map((c) => ({
+    ...c,
+    createdAt: c.createdAt.toISOString(),
   }));
 
+  const serializedSubscription = subscription ? {
+    ...subscription,
+    planName: planName,
+    // Convert Date objects to strings to make them serializable
+    currentPeriodEnd: subscription.currentPeriodEnd?.toISOString() ?? null,
+    createdAt: subscription.createdAt.toISOString(),
+    updatedAt: subscription.updatedAt.toISOString(),
+  } : null;
+
   return (
-    <DashboardClientLayout conversations={serializedConversations}>
+    <DashboardClientLayout 
+      conversations={serializedConversations}
+      subscription={serializedSubscription}
+    >
       {children}
     </DashboardClientLayout>
   );

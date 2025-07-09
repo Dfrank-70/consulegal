@@ -1,4 +1,5 @@
 "use client";
+import { format } from 'date-fns';
 
 import React from "react";
 import Link from "next/link";
@@ -6,7 +7,7 @@ import { useSession } from "next-auth/react";
 import { logout } from "@/app/dashboard/actions";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { User, Settings, LogOut, X, Users, PlusCircle, Trash2 } from "lucide-react";
+import { User, Settings, LogOut, X, Users, PlusCircle, Trash2, Sparkles } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,14 +25,22 @@ export interface Conversation {
   createdAt: string;
 }
 
+import { type SerializableSubscription } from "@/app/dashboard/client-layout";
+
 interface DashboardSidebarProps {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
   initialConversations: Conversation[];
+  subscription: SerializableSubscription | null;
 }
 
-export function DashboardSidebar({ sidebarOpen, setSidebarOpen, initialConversations }: DashboardSidebarProps) {
-  const { data: session, status } = useSession();
+export function DashboardSidebar({
+  sidebarOpen,
+  setSidebarOpen,
+  initialConversations,
+  subscription,
+}: DashboardSidebarProps) {
+  const { data: session } = useSession();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const currentConversationId = searchParams?.get('conversationId');
@@ -39,43 +48,10 @@ export function DashboardSidebar({ sidebarOpen, setSidebarOpen, initialConversat
   const [conversations, setConversations] = React.useState(initialConversations);
   const [isAlertOpen, setIsAlertOpen] = React.useState(false);
   const [conversationIdToDelete, setConversationIdToDelete] = React.useState<string | null>(null);
-  const [subscription, setSubscription] = React.useState<any>(null);
-  const [isLoadingSubscription, setIsLoadingSubscription] = React.useState(true);
 
   React.useEffect(() => {
     setConversations(initialConversations);
   }, [initialConversations]);
-
-  React.useEffect(() => {
-    const fetchSubscription = async () => {
-      // Esegui la chiamata solo se l'utente è autenticato
-      if (status === 'authenticated') {
-        setIsLoadingSubscription(true);
-        try {
-          const response = await fetch('/api/subscription');
-          if (response.ok) {
-            const data = await response.json();
-            setSubscription(data);
-          } else {
-            // Se la risposta non è ok, non c'è abbonamento
-            setSubscription(null);
-          }
-        } catch (error) {
-          console.error('Error fetching subscription:', error);
-          setSubscription(null);
-        } finally {
-          setIsLoadingSubscription(false);
-        }
-      } else if (status === 'unauthenticated') {
-        // Se l'utente non è autenticato, non c'è abbonamento e smettiamo di caricare
-        setSubscription(null);
-        setIsLoadingSubscription(false);
-      }
-      // Se lo status è 'loading', continuiamo a mostrare il caricamento
-    };
-
-    fetchSubscription();
-  }, [status]);
 
   const handleDeleteClick = (e: React.MouseEvent, conversationId: string) => {
     e.preventDefault();
@@ -221,16 +197,22 @@ export function DashboardSidebar({ sidebarOpen, setSidebarOpen, initialConversat
 
         <div className="space-y-2">
           <h4 className="px-3 text-xs font-semibold uppercase text-muted-foreground tracking-wider">Abbonamento</h4>
-          {status === 'loading' || isLoadingSubscription ? (
-            <p className="px-3 text-sm text-muted-foreground">Caricamento...</p>
-          ) : subscription ? (
+          {subscription ? (
             <div className="px-3 text-sm text-muted-foreground space-y-1">
-                            <p><span className="font-semibold text-foreground">Piano:</span> {subscription.planName || 'N/A'}</p>
+              <p><span className="font-semibold text-foreground">Piano:</span> {subscription.planName || 'N/A'}</p>
               <p><span className="font-semibold text-foreground">Stato:</span> <span className={`capitalize px-2 py-1 text-xs rounded-full ${subscription.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{subscription.status}</span></p>
-              <p><span className="font-semibold text-foreground">Scadenza:</span> {subscription.currentPeriodEnd ? new Date(subscription.currentPeriodEnd).toLocaleDateString() : 'N/A'}</p>
+                            <p><span className="font-semibold text-foreground">Scadenza:</span> {subscription.currentPeriodEnd ? format(new Date(subscription.currentPeriodEnd), 'dd/MM/yyyy') : 'N/A'}</p>
             </div>
           ) : (
-            <p className="px-3 text-sm text-muted-foreground">Nessun abbonamento attivo.</p>
+            <div className="px-3 text-sm">
+              <p className="text-muted-foreground">Nessun piano attivo.</p>
+              <Button variant="ghost" size="sm" className="mt-2 -ml-2" asChild>
+                <Link href={{ pathname: "/dashboard/plans" }}>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Upgrade
+                </Link>
+              </Button>
+            </div>
           )}
         </div>
 

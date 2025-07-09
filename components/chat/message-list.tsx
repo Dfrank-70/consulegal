@@ -4,6 +4,7 @@ import { Message } from "./chat-interface";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { FormattedMessageContent } from "./formatted-message-content";
 
 interface MessageListProps {
   messages: Message[];
@@ -12,14 +13,24 @@ interface MessageListProps {
 export function MessageList({ messages }: MessageListProps) {
   return (
     <div className="space-y-4">
-      {messages.map((message) => (
-        <MessageItem key={message.id} message={message} />
+      {messages.map((message, index) => (
+        <MessageItem
+          key={message.id}
+          message={message}
+          history={messages.slice(0, index)}
+        />
       ))}
     </div>
   );
 }
 
-function MessageItem({ message }: { message: Message }) {
+function MessageItem({
+  message,
+  history,
+}: {
+  message: Message;
+  history: Message[];
+}) {
   const [showDetails, setShowDetails] = useState(false);
   const isUser = message.role === "USER";
 
@@ -39,15 +50,19 @@ function MessageItem({ message }: { message: Message }) {
         )}
       >
         <CardContent className="p-3 sm:p-4">
-          <div className="whitespace-pre-wrap">{message.content}</div>
-          
+          {isUser ? (
+            <div className="whitespace-pre-wrap">{message.content}</div>
+          ) : (
+            <FormattedMessageContent message={message} history={history} />
+          )}
+
           {!isUser && message.tokensOut && (
-            <div 
+            <div
               className="mt-2 text-xs opacity-70 cursor-pointer"
               onClick={() => setShowDetails(!showDetails)}
             >
               {showDetails ? "Nascondi dettagli" : "Mostra dettagli"} ▾
-              
+
               {showDetails && (
                 <div className="mt-1 space-y-1">
                   {message.tokensIn && (

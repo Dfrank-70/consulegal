@@ -79,6 +79,7 @@ model Subscription {
   stripeProductId      String? // ID Prodotto Stripe (prod_xxxx) - identifica il prodotto (Light, Medium, Advanced)
 
   status String // Es: active, past_due, canceled, trialing (direttamente da Stripe)
+  tokenLimit Int    @default(10000) // Limite di token giornaliero
 
   currentPeriodStart DateTime? // Inizio periodo corrente - RESO OPZIONALE
   currentPeriodEnd   DateTime? // Fine periodo corrente (quando si rinnova/scade) - RESO OPZIONALE
