@@ -131,6 +131,32 @@ export async function POST(req: NextRequest) {
         break;
       }
 
+      case 'invoice.payment_succeeded':
+      case 'invoice_payment.paid': {
+        console.log('💳 Invoice payment succeeded event received');
+        const invoice = event.data.object as Stripe.Invoice;
+        const customerId = invoice.customer as string;
+        
+        if ((invoice as any).subscription) {
+          console.log(`🔍 Processing payment for subscription ${(invoice as any).subscription}`);
+          const subscription = await stripe.subscriptions.retrieve((invoice as any).subscription as string);
+          
+          // Find the user via the stored customerId
+          const user = await prisma.user.findFirst({
+            where: { stripeCustomerId: customerId },
+            select: { id: true },
+          });
+
+          if (user) {
+            console.log(`✅ Payment confirmed for user ${user.id}, updating subscription`);
+            await manageSubscription(subscription, user.id);
+          } else {
+            console.error(`❌ User not found for customer ID: ${customerId}. Cannot process payment confirmation.`);
+          }
+        }
+        break;
+      }
+
       default:
         console.log(`🤷‍♀️ Unhandled event type: ${event.type}`);
     }

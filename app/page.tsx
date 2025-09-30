@@ -8,7 +8,7 @@ export default function Home() {
     <div className="flex flex-col min-h-screen">
       <header className="py-6 px-4 md:px-8 bg-background border-b">
         <div className="container mx-auto flex justify-between items-center">
-          <h1 className="text-2xl font-bold">ConsulLegal AI</h1>
+          <h1 className="text-2xl font-bold">Traspolegal</h1>
           <div className="space-x-2 sm:space-x-4">
             <Link href="/pricing">
               <Button variant="ghost" size="sm">Piani</Button>
@@ -106,7 +106,7 @@ export default function Home() {
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
-              <h3 className="font-bold text-lg mb-3">ConsulLegal AI</h3>
+              <h3 className="font-bold text-lg mb-3">Traspolegal</h3>
               <p className="text-muted-foreground">Consulenza legale intelligente, disponibile 24/7.</p>
             </div>
             <div>
@@ -135,7 +135,7 @@ export default function Home() {
             </div>
           </div>
           <div className="border-t mt-8 pt-8 flex flex-col md:flex-row justify-between items-center">
-            <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} ConsulLegal AI. Tutti i diritti riservati.</p>
+            <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} Traspolegal. Tutti i diritti riservati.</p>
             <div className="flex space-x-4 mt-4 md:mt-0">
               {/* Social media icons would go here */}
             </div>

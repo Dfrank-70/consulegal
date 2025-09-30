@@ -36,10 +36,17 @@ export async function GET(req: NextRequest) {
         subscription: {
           select: {
             id: true,
-            plan: true,
             status: true,
             tokenLimit: true,
             createdAt: true,
+          },
+        },
+        workflow: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            isDefault: true,
           },
         },
         _count: {

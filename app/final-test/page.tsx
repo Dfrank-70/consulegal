@@ -9,7 +9,7 @@ export default function FinalTest() {
         <div className="bg-white rounded-xl shadow-lg overflow-hidden mb-8">
           <div className="bg-blue-600 p-4">
             <h2 className="text-xl font-semibold text-white">
-              Configurazione ConsulLegal AI
+              Configurazione Traspolegal
             </h2>
           </div>
           <div className="p-6">

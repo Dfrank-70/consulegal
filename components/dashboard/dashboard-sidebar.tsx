@@ -110,7 +110,7 @@ export function DashboardSidebar({
     <>
       <div className={`flex items-center justify-between px-4 h-16 border-b ${isMobile ? "" : "lg:border-b"}`}>
         <Link href="/dashboard" className="text-xl font-bold text-primary">
-          ConsulLegal AI
+          Traspolegal
         </Link>
         {isMobile && (
           <button

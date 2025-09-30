@@ -78,6 +78,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Stripe customer ID could not be established.' }, { status: 500 });
     }
 
+    // DEBUG: Log the user ID being sent to Stripe
+    console.log(`Creating Stripe session for user ID (client_reference_id): ${confirmedUser.id}`);
+
     // 5. Crea la sessione di checkout Stripe
     const stripeSession = await stripe.checkout.sessions.create({
       customer: currentStripeCustomerId, // Usa la variabile aggiornata

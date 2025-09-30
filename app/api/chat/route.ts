@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma"; // Utilizza istanza Prisma centralizzata
+import prisma from "@/lib/prisma";
 import { auth } from "../../../auth";
 import { OpenAI } from "openai";
+// Rimosso formidable - usiamo le API native di Next.js
+// pdf-parse viene importato dinamicamente solo quando necessario
+import mammoth from "mammoth";
+import { executeWorkflow, getWorkflowFinalOutput } from "@/lib/workflow-executor";
 
-// La vecchia istanza locale 'const prisma = new PrismaClient();' è stata rimossa.
+// Configurazione rimossa - usiamo le API native di Next.js
 
-// Inizializziamo OpenAI solo quando serve, non durante la build
 const getOpenAIClient = () => {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -22,52 +25,18 @@ function countTokens(text: string): number {
 }
 
 // Funzione per generare il messaggio di sistema per l'AI
-async function constructSystemMessage(userId: string, existingMessages: { content: string }[]): Promise<{ role: "system", content: string }> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { customInstructions: true },
-  });
-
-  // 1. Trova il numero di nota più alto usato finora
-  let highestNoteNumber = 0;
-  const noteRegex = /\(nota (\d+)\)/g;
-  for (const message of existingMessages) {
-    const matches = message.content.matchAll(noteRegex);
-    for (const match of matches) {
-      const noteNumber = parseInt(match[1], 10);
-      if (noteNumber > highestNoteNumber) {
-        highestNoteNumber = noteNumber;
-      }
-    }
-  }
-  const nextNoteNumber = highestNoteNumber + 1;
+async function buildSystemMessage(messages: any[], user: any) {
 
   // 2. Costruisci le istruzioni dinamiche
-  const baseInstructions = `Sei ConsuLegal, un assistente legale virtuale per professionisti del mercato italiano. Rispondi in modo chiaro, preciso e formale.
+  const baseInstructions = `Sei Traspolegal, un assistente legale virtuale per professionisti del mercato italiano. Rispondi in modo chiaro, preciso e formale.
 
-  --- REGOLE DI FORMATTAZIONE ASSOLUTAMENTE OBBLIGATORIE ---
-  DEVI SEGUIRE QUESTE REGOLE ALLA LETTERA. NON SONO SUGGERIMENTI.
-  
-  1.  **CITAZIONI NEL TESTO:** Quando citi una fonte, DEVI usare il formato esatto '(nota X)'. Non usare '[1]', 'nota 1', o altri formati.
-  2.  **SEZIONE NOTE:** Alla fine della tua risposta, DEVI includere una sezione che inizia ESATTAMENTE con la parola "Note:", seguita dai due punti. Non usare "Fonti:", "Riferimenti:", o altro.
-  3.  **FORMATO NOTE:** Nella sezione "Note:", ogni fonte DEVE essere elencata nel formato esatto '(X) Testo della fonte...'.
-  4.  **NUMERAZIONE PROGRESSIVA:** La numerazione è OBBLIGATORIAMENTE progressiva. La prossima nota che devi usare in questa risposta è (nota ${nextNoteNumber}). Le successive saranno (nota ${nextNoteNumber + 1}), e così via.
-  
-  --- ESEMPIO DI FORMATTAZIONE CORRETTA ---
-  Questo è un testo di esempio (nota ${nextNoteNumber}). Questo è un altro pezzo di testo con una citazione (nota ${nextNoteNumber + 1}).
-  
-  Note:
-  (${nextNoteNumber}) Art. 123 del Codice Civile.
-  (${nextNoteNumber + 1}) Sentenza Cass. n. 456/2023.
-  
-  --- ESEMPIO DI FORMATTAZIONE SBAGLIATA (DA NON USARE MAI) ---
-  Questo è un testo [1].
-  Fonti:
-  1. Art. 123...
-  
-  SE NON SEGUI QUESTE REGOLE, LA TUA RISPOSTA È INUTILE. SEGUILE.
-  
-  RICORDA: LA SEZIONE 'Note:' ALLA FINE DELLA RISPOSTA È OBBLIGATORIA.`;
+--- ISTRUZIONI OPERATIVE ---
+
+1.  **GESTIONE FILE ALLEGATI:** Quando l'utente allega un file (PDF, DOC, DOCX), il contenuto viene sempre estratto automaticamente e incluso nel messaggio. Analizza SEMPRE il contenuto del file allegato insieme alla richiesta dell'utente e fornisci una consulenza completa e dettagliata. NON dire mai che non puoi analizzare un file - se è arrivato fino a te, significa che è già stato elaborato con successo.
+
+2.  **STILE DI RISPOSTA:** Fornisci risposte professionali, ben strutturate e complete. Usa un linguaggio tecnico appropriato ma comprensibile.
+
+3.  **ANALISI DOCUMENTALE:** Se viene allegato un documento, analizzalo approfonditamente e fornisci osservazioni specifiche sul contenuto, evidenziando aspetti legali rilevanti.`;
   const customUserInstructions = user?.customInstructions
     ? `\n\nISTRUZIONI SPECIFICHE AGGIUNTIVE PER QUESTO UTENTE:\n${user.customInstructions}`
     : "";
@@ -78,19 +47,139 @@ async function constructSystemMessage(userId: string, existingMessages: { conten
   };
 }
 
+function cleanExtractedText(text: string): string {
+  return text
+    .split('\n')
+    .filter(line => line.trim() !== '') // Rimuove righe vuote
+    .join('\n')
+    .trim();
+}
+
+async function extractTextFromFile(file: File): Promise<string> {
+  const fileName = file.name || 'file sconosciuto';
+  const fileType = file.type;
+
+  console.log(`Elaborazione file: ${fileName}, tipo MIME: ${fileType}`);
+
+  try {
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+    let extractedText = "";
+
+    if (fileType === "application/pdf") {
+      console.log("Elaborazione PDF in corso con pdf2json...");
+      try {
+        const PDFParser = await import("pdf2json");
+        
+        extractedText = await new Promise<string>((resolve, reject) => {
+          const pdfParser = new PDFParser.default();
+          
+          pdfParser.on("pdfParser_dataError", (errData: any) => {
+            console.error("Errore PDF2JSON:", errData);
+            resolve(`[ERRORE: Impossibile elaborare il PDF "${fileName}". Il file potrebbe essere corrotto o protetto.]`);
+          });
+          
+          pdfParser.on("pdfParser_dataReady", (pdfData: any) => {
+            try {
+              let fullText = "";
+              
+              if (pdfData.Pages && pdfData.Pages.length > 0) {
+                pdfData.Pages.forEach((page: any, pageIndex: number) => {
+                  if (page.Texts && page.Texts.length > 0) {
+                    page.Texts.forEach((textItem: any) => {
+                      if (textItem.R && textItem.R.length > 0) {
+                        textItem.R.forEach((run: any) => {
+                          if (run.T) {
+                            fullText += decodeURIComponent(run.T) + " ";
+                          }
+                        });
+                      }
+                    });
+                    fullText += "\n";
+                  }
+                });
+              }
+              
+              if (fullText.trim()) {
+                resolve(fullText.trim());
+              } else {
+                resolve(`[PDF "${fileName}" elaborato ma non contiene testo estraibile. Potrebbe essere un'immagine scansionata.]`);
+              }
+            } catch (parseError) {
+              console.error("Errore parsing PDF:", parseError);
+              resolve(`[ERRORE: Impossibile estrarre il testo dal PDF "${fileName}".]`);
+            }
+          });
+          
+          // Avvia il parsing
+          pdfParser.parseBuffer(fileBuffer);
+        });
+      } catch (pdfError) {
+        console.error("Errore caricamento pdf2json:", pdfError);
+        extractedText = `[ERRORE: Impossibile caricare il parser PDF. Prova a convertire in DOCX.]`;
+      }
+      
+    } else if (fileType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+      console.log("Elaborazione DOCX in corso...");
+      const { value } = await mammoth.extractRawText({ buffer: fileBuffer });
+      extractedText = value;
+      
+    } else if (fileType === "application/msword") {
+      console.log("Elaborazione DOC in corso...");
+      try {
+        const WordExtractor = await import("word-extractor");
+        const extractor = new WordExtractor.default();
+        
+        // word-extractor richiede un file path, quindi salviamo temporaneamente il buffer
+        const fs = await import("fs");
+        const path = await import("path");
+        const os = await import("os");
+        
+        const tempFilePath = path.join(os.tmpdir(), `temp_${Date.now()}.doc`);
+        fs.writeFileSync(tempFilePath, fileBuffer);
+        
+        const extracted = await extractor.extract(tempFilePath);
+        extractedText = extracted.getBody();
+        
+        // Pulisci il file temporaneo
+        fs.unlinkSync(tempFilePath);
+        
+      } catch (docError) {
+        console.error("Errore elaborazione DOC:", docError);
+        return `[ERRORE DOC: Impossibile elaborare il file "${fileName}". Prova a salvarlo come DOCX.]`;
+      }
+      
+    } else {
+      console.log(`Tipo di file non supportato: ${fileType}`);
+      return `\n[ERRORE: Tipo di file "${fileType}" non supportato. Sono accettati solo PDF, DOC e DOCX.]\n`;
+    }
+
+    // Pulisce il testo rimuovendo righe vuote
+    const cleanedText = cleanExtractedText(extractedText);
+    console.log(`File elaborato con successo. Testo pulito: ${cleanedText.length} caratteri (originale: ${extractedText.length})`);
+    
+    return cleanedText;
+    
+  } catch (error) {
+    console.error(`Errore durante l'elaborazione del file ${fileName}:`, error);
+    return `\n[ERRORE: Impossibile elaborare il file "${fileName}". Verifica che il file non sia corrotto.]\n`;
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const session = await auth();
-    
     if (!session || !session.user) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 401 });
     }
-    
-    const { message, conversationId } = await req.json();
-    
-    if (!message) {
+
+    const formData = await req.formData();
+    const message = formData.get("message") as string || "";
+    let conversationId = formData.get("conversationId") as string || null;
+    const file = formData.get("file") as File | null;
+
+    if (!message && !file) {
       return NextResponse.json(
-        { error: "Il messaggio è richiesto" },
+        { error: "È richiesto un messaggio o un file." },
         { status: 400 }
       );
     }
@@ -99,11 +188,17 @@ export async function POST(req: NextRequest) {
 
     // --- INIZIO BLOCCO DI VALIDAZIONE UTENTE E ABBONAMENTO ---
 
-    // 1. Recupera utente e abbonamento associato
+    // 1. Recupera utente, abbonamento e workflow associato
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
         subscription: true,
+        workflow: {
+          include: {
+            nodes: true,
+            edges: true,
+          },
+        },
       },
     });
 
@@ -160,6 +255,23 @@ export async function POST(req: NextRequest) {
 
     // --- FINE BLOCCO DI VALIDAZIONE ---
     
+    // Determina quale workflow utilizzare
+    let workflowToUse = user.workflow;
+    
+    // Se l'utente non ha un workflow assegnato, usa quello di default
+    if (!workflowToUse) {
+      workflowToUse = await prisma.workflow.findFirst({
+        where: { isDefault: true },
+        include: {
+          nodes: true,
+          edges: true,
+        },
+      });
+    }
+
+    // Se non c'è nemmeno un workflow di default, usa la logica legacy
+    const useWorkflow = workflowToUse && workflowToUse.nodes.length > 0;
+
     // Create or get conversation
     let conversation;
     if (conversationId) {
@@ -182,59 +294,110 @@ export async function POST(req: NextRequest) {
         data: {
           userId,
           title: `Consulenza ${new Date().toLocaleDateString("it-IT")}`,
+          workflowId: workflowToUse?.id || null,
         },
       });
     }
     
+    let fileContent = "";
+    let fullMessage = message;
+    
+    if (file) {
+      try {
+        fileContent = await extractTextFromFile(file);
+        
+        // Costruisci un prompt strutturato che include il messaggio e il contenuto del file
+        fullMessage = `${message} allego questi file
+
+L'utente ha inviato 1 file allegato:
+- Contenuto del file "${file.name}": ${fileContent}`;
+        
+      } catch (e) {
+        console.error("Error extracting text from file:", e);
+        return NextResponse.json({ error: "Impossibile leggere il file allegato." }, { status: 500 });
+      }
+    }
+
     // Count tokens for user message
-    const tokensIn = countTokens(message);
+    const tokensIn = countTokens(fullMessage);
     
     // Save user message to database
     const userMessage = await prisma.message.create({
       data: {
         conversationId: conversation.id,
         role: "USER",
-        content: message,
+        content: fullMessage,
         tokensIn,
       },
     });
     
-    // Prepare conversation history for context
-    const messageHistory = await prisma.message.findMany({
-      where: {
-        conversationId: conversation.id,
-      },
-      orderBy: {
-        createdAt: "asc",
-      },
-      take: 10, // Limit recent messages to avoid token limit
-    });
+    let content: string;
+    let tokensOut: number;
+    let totalTokens: number;
+    let executionDetails: any = null;
 
-    // Format messages for OpenAI API
-    const messages = messageHistory.map((msg: any) => ({
-      role: msg.role === "USER" ? "user" : "assistant",
-      content: msg.content,
-    }));
+    if (useWorkflow && workflowToUse) {
+      // Esegui il workflow
+      console.log(`Eseguendo workflow: ${workflowToUse.name} (ID: ${workflowToUse.id})`);
+      
+      const workflowExecution = await executeWorkflow(workflowToUse.id, userId, fullMessage);
+      
+      if (workflowExecution.success) {
+        content = getWorkflowFinalOutput(workflowExecution);
+        tokensOut = workflowExecution.totalTokensUsed;
+        totalTokens = workflowExecution.totalTokensUsed;
+        executionDetails = {
+          workflowId: workflowToUse.id,
+          workflowName: workflowToUse.name,
+          steps: workflowExecution.steps.length,
+          totalCost: workflowExecution.totalCost,
+        };
+      } else {
+        content = `Errore nell'esecuzione del workflow: ${workflowExecution.error}`;
+        tokensOut = countTokens(content);
+        totalTokens = tokensOut;
+      }
+    } else {
+      // Fallback alla logica legacy se non c'è workflow
+      console.log("Nessun workflow configurato, usando logica legacy");
+      
+      // Prepare conversation history for context
+      const messageHistory = await prisma.message.findMany({
+        where: {
+          conversationId: conversation.id,
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+        take: 10, // Limit recent messages to avoid token limit
+      });
 
-    const systemMessage = await constructSystemMessage(userId, messages);
+      // Format messages for OpenAI API
+      const messages = messageHistory.map((msg: any) => ({
+        role: msg.role === "USER" ? "user" : "assistant",
+        content: msg.content,
+      }));
 
-    const openaiClient = getOpenAIClient();
-    const completion = await openaiClient.chat.completions.create({
-      model: "gpt-3.5-turbo", // Usa il modello specificato
-      messages: [
-        systemMessage as any,
-        ...messages as any,
-      ],
-      temperature: 0.7,
-      max_tokens: 1000, // Limita il numero di token nell'output
-    });
+      const systemMessage = await buildSystemMessage(messages, user);
 
-    const content = completion.choices[0].message.content || "Mi dispiace, non sono stato in grado di generare una risposta.";
+      const openaiClient = getOpenAIClient();
+      const completion = await openaiClient.chat.completions.create({
+        model: "gpt-3.5-turbo", // Usa il modello specificato
+        messages: [
+          systemMessage as any,
+          ...messages as any,
+        ],
+        temperature: 0.7,
+        max_tokens: 1000, // Limita il numero di token nell'output
+      });
 
-    // Count tokens for assistant message
-    const tokensOut = completion.usage?.completion_tokens || countTokens(content);
+      content = completion.choices[0].message.content || "Mi dispiace, non sono stato in grado di generare una risposta.";
 
-    const totalTokens = messages.reduce((acc: number, msg: any) => acc + countTokens(msg.content || ""), 0);
+      // Count tokens for assistant message
+      tokensOut = completion.usage?.completion_tokens || countTokens(content);
+
+      totalTokens = messages.reduce((acc: number, msg: any) => acc + countTokens(msg.content || ""), 0);
+    }
 
     // Save assistant message to database
     const assistantMessage = await prisma.message.create({
@@ -265,7 +428,8 @@ export async function POST(req: NextRequest) {
       title: conversation.title,
       tokensIn: tokensIn,
       tokensOut: tokensOut,
-      llmProvider: "OpenAI",
+      llmProvider: useWorkflow ? "Workflow" : "OpenAI",
+      ...(executionDetails && { workflowExecution: executionDetails }),
     });
     
   } catch (error: any) {

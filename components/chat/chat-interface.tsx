@@ -190,30 +190,38 @@ export function ChatInterface({ selectedConversationId, isSubscribed }: ChatInte
     }
   };
   
-  const handleSubmit = async (content: string) => {
+  const handleSubmit = async (content: string, file?: File) => {
     if (!isSubscribed) {
       setShowSubscriptionAlert(true);
       return;
     }
-    if (!content.trim()) return;
-    
+    if (!content.trim() && !file) return;
+
     setIsLoading(true);
     setError(null);
 
     const userMessage: Message = {
       id: `temp-${Date.now()}`,
       role: "USER",
-      content,
+      content: content + (file ? `\n\n--- Allegato: ${file.name} ---` : ""),
       createdAt: new Date(),
     };
-    
+
     setMessages((prev) => [...prev, userMessage]);
-    
+
     try {
+      const formData = new FormData();
+      formData.append("message", content);
+      if (currentConversationId) {
+        formData.append("conversationId", currentConversationId);
+      }
+      if (file) {
+        formData.append("file", file);
+      }
+
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: content, conversationId: currentConversationId }),
+        body: formData,
       });
       
       if (!response.ok) {
@@ -359,7 +367,6 @@ export function ChatInterface({ selectedConversationId, isSubscribed }: ChatInte
         <MessageInput 
           onSend={handleSubmit} 
           isLoading={isLoading}
-          disabled={isLoading || !isSubscribed}
         />
       </div>
     </div>

@@ -34,6 +34,51 @@ model User {
   conversations Conversation[]
   subscription  Subscription?
   tokenUsage    TokenUsage[]
+
+  workflow   Workflow? @relation(fields: [workflowId], references: [id])
+  workflowId String?
+
+  workflowExecutionLogs WorkflowExecutionLog[]
+}
+
+model Workflow {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  isDefault   Boolean  @default(false)
+  userId      String? // Se null, è un template globale. Se valorizzato, è una copia per un utente specifico.
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  nodes WorkflowNode[]
+  edges WorkflowEdge[]
+  users User[]
+}
+
+model WorkflowNode {
+  id         String @id @default(cuid())
+  workflowId String
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  nodeId   String // ID univoco del nodo nel canvas (per React Flow)
+  type     String // es. 'llm', 'input', 'output'
+  position Json   // { x: number, y: number }
+  data     Json   // Dati specifici del nodo (provider, prompt, temperatura, ecc.)
+
+  @@unique([workflowId, nodeId])
+}
+
+model WorkflowEdge {
+  id         String @id @default(cuid())
+  workflowId String
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  edgeId     String // ID univoco dell'edge nel canvas (per React Flow)
+  sourceId   String // nodeId di origine
+  targetId   String // nodeId di destinazione
+  data       Json?  // Dati specifici dell'edge (es. istruzioni di transizione)
+
+  @@unique([workflowId, edgeId])
 }
 
 model LLMProvider {
@@ -53,6 +98,9 @@ model Conversation {
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages Message[]
+
+  // Traccia quale workflow è stato usato per questa conversazione
+  workflowId String?
 }
 
 model Message {
@@ -130,4 +178,21 @@ model Plan {
   isActive      Boolean  @default(true) // To easily enable/disable plans
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+model WorkflowExecutionLog {
+  id        String   @id @default(cuid())
+  workflowId  String
+  userId      String
+  success     Boolean
+  startedAt   DateTime @default(now())
+  endedAt     DateTime @updatedAt
+  input       String   @db.Text
+  output      String   @db.Text
+  error       String?  @db.Text
+  steps       Json?    // Dettagli di ogni step (nodi eseguiti)
+  totalCost   Float    @default(0)
+  totalTokens Int      @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

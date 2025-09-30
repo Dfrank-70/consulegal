@@ -10,7 +10,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "ConsulLegal AI - Consulenza Legale con Intelligenza Artificiale",
+  title: "Traspolegal - Consulenza Legale con Intelligenza Artificiale",
   description: "Ottieni consulenza legale istantanea grazie all'intelligenza artificiale avanzata.",
 };
 

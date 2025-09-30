@@ -78,7 +78,7 @@ export default function PricingPage() {
             Piani Tariffari Flessibili
           </h1>
           <p className="mt-4 max-w-2xl mx-auto text-lg text-muted-foreground">
-            Scegli il piano più adatto alle tue esigenze e inizia subito a sfruttare la potenza di ConsulLegal AI.
+            Scegli il piano più adatto alle tue esigenze e inizia subito a sfruttare la potenza di Traspolegal.
           </p>
         </div>
 

@@ -76,7 +76,7 @@ export function DashboardClientLayout({
               <Menu className="h-5 w-5" />
             </button>
             <Link href="/dashboard" className="text-lg font-bold text-primary">
-              ConsulLegal AI
+              Traspolegal
             </Link>
             <div className="w-5"></div>
           </div>
