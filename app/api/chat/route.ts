@@ -6,6 +6,7 @@ import { OpenAI } from "openai";
 // pdf-parse viene importato dinamicamente solo quando necessario
 import mammoth from "mammoth";
 import { executeWorkflow, getWorkflowFinalOutput } from "@/lib/workflow-executor";
+import { stripe } from "@/lib/stripe";
 
 // Configurazione rimossa - usiamo le API native di Next.js
 
@@ -193,14 +194,66 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Blocco di validazione dell'abbonamento e del limite token
-    const subscription = user.subscription;
-    const isSubscribed = 
+    let subscription = user.subscription;
+    let isSubscribed = 
         subscription &&
         subscription.currentPeriodEnd &&
         subscription.currentPeriodEnd.getTime() > Date.now();
 
+    // Se non è sottoscritto nel DB, controlla Stripe e sincronizza automaticamente
+    if (!isSubscribed && user.stripeCustomerId) {
+      console.log(`🔄 Utente ${user.email} non ha abbonamento attivo nel DB, controllo Stripe...`);
+      try {
+        const stripeSubscriptions = await stripe.subscriptions.list({
+          customer: user.stripeCustomerId,
+          status: 'active',
+          limit: 1
+        });
+
+        if (stripeSubscriptions.data.length > 0) {
+          const stripeSub = stripeSubscriptions.data[0];
+          console.log(`✅ Trovata subscription attiva su Stripe: ${stripeSub.id}`);
+
+          // Sincronizza nel DB
+          subscription = await prisma.subscription.upsert({
+            where: { userId: userId },
+            create: {
+              userId: userId,
+              stripeSubscriptionId: stripeSub.id,
+              stripePriceId: stripeSub.items.data[0].price.id,
+              stripeProductId: stripeSub.items.data[0].price.product as string,
+              status: stripeSub.status,
+              currentPeriodStart: new Date((stripeSub as any).current_period_start * 1000),
+              currentPeriodEnd: new Date((stripeSub as any).current_period_end * 1000),
+              cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
+              tokenLimit: 10000, // Default per piano intermedio
+            },
+            update: {
+              stripeSubscriptionId: stripeSub.id,
+              stripePriceId: stripeSub.items.data[0].price.id,
+              stripeProductId: stripeSub.items.data[0].price.product as string,
+              status: stripeSub.status,
+              currentPeriodStart: new Date((stripeSub as any).current_period_start * 1000),
+              currentPeriodEnd: new Date((stripeSub as any).current_period_end * 1000),
+              cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
+              tokenLimit: 10000,
+            }
+          });
+
+          isSubscribed = 
+            subscription &&
+            subscription.currentPeriodEnd &&
+            subscription.currentPeriodEnd.getTime() > Date.now();
+
+          console.log(`✅ Abbonamento sincronizzato per ${user.email}, attivo: ${isSubscribed}`);
+        }
+      } catch (error) {
+        console.error(`❌ Errore sincronizzazione Stripe per ${user.email}:`, error);
+      }
+    }
+
     if (isSubscribed) {
-      const dailyTokenLimit = subscription.tokenLimit;
+      const dailyTokenLimit = subscription!.tokenLimit;
 
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);

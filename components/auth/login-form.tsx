@@ -28,6 +28,8 @@ export function LoginForm() {
         redirect: false,
       });
 
+      console.log("SignIn result:", result);
+
       if (result?.error) {
         setError("Credenziali non valide. Riprova.");
       } else {
@@ -35,6 +37,7 @@ export function LoginForm() {
         router.push("/dashboard");
       }
     } catch (error) {
+      console.error("Login error:", error);
       setError("Si è verificato un errore durante il login");
     } finally {
       setIsLoading(false);
