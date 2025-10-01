@@ -44,6 +44,7 @@ export default function UsersPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showWorkflowModal, setShowWorkflowModal] = useState(false);
+  const [tempWorkflowId, setTempWorkflowId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchUsers();
@@ -209,7 +210,7 @@ export default function UsersPage() {
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                  <button onClick={() => { setSelectedUser(user); setShowWorkflowModal(true); }} className="text-blue-400 hover:text-blue-300">Assegna Workflow</button>
+                  <button onClick={() => { setSelectedUser(user); setTempWorkflowId(user.workflow?.id ?? null); setShowWorkflowModal(true); }} className="text-blue-400 hover:text-blue-300">Assegna Workflow</button>
                   <button onClick={() => toggleUserBlock(user.id, user.isBlocked)} className={user.isBlocked ? 'text-green-400 hover:text-green-300' : 'text-red-400 hover:text-red-300'}>
                     {user.isBlocked ? 'Sblocca' : 'Blocca'}
                   </button>
@@ -228,14 +229,14 @@ export default function UsersPage() {
               <div className="space-y-3">
                 <div>
                   <label className="flex items-center">
-                    <input type="radio" name="workflow" value="" checked={!selectedUser.workflow} onChange={() => assignWorkflow(selectedUser.id, null)} className="mr-2" />
+                    <input type="radio" name="workflow" value="" checked={tempWorkflowId === null} onChange={() => setTempWorkflowId(null)} className="mr-2" />
                     <span className="text-sm text-slate-200">Usa workflow di default</span>
                   </label>
                 </div>
                 {workflows.map((workflow) => (
                   <div key={workflow.id}>
                     <label className="flex items-center">
-                      <input type="radio" name="workflow" value={workflow.id} checked={selectedUser.workflow?.id === workflow.id} onChange={() => assignWorkflow(selectedUser.id, workflow.id)} className="mr-2" />
+                      <input type="radio" name="workflow" value={workflow.id} checked={tempWorkflowId === workflow.id} onChange={() => setTempWorkflowId(workflow.id)} className="mr-2" />
                       <div>
                         <span className="text-sm font-medium text-slate-200">{workflow.name}</span>
                         {workflow.isDefault && (
@@ -251,6 +252,13 @@ export default function UsersPage() {
               </div>
               <div className="flex justify-end space-x-3 mt-6">
                 <button onClick={() => { setShowWorkflowModal(false); setSelectedUser(null); }} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded">Annulla</button>
+                <button
+                  onClick={() => assignWorkflow(selectedUser.id, tempWorkflowId)}
+                  disabled={(selectedUser.workflow?.id ?? null) === tempWorkflowId}
+                  className={`font-bold py-2 px-4 rounded ${((selectedUser.workflow?.id ?? null) === tempWorkflowId) ? 'bg-blue-400/40 text-white cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+                >
+                  Salva
+                </button>
               </div>
             </div>
           </div>

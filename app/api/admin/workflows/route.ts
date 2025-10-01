@@ -28,7 +28,24 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    return NextResponse.json(workflows);
+    // Add server-side computed counts: validEdgeCount + usersAssignedCount
+    const withCounts = await Promise.all(
+      workflows.map(async (w) => {
+        const valid = (w.edges || []).filter((e: any) => (e.sourceId || (e as any).source) && (e.targetId || (e as any).target));
+        const uniqueByEdgeId = new Set(valid.map((e: any) => e.edgeId || e.id));
+        const validEdgeCount = uniqueByEdgeId.size;
+
+        const usersAssignedCount = await prisma.user.count({
+          where: w.isDefault
+            ? { OR: [{ workflowId: w.id }, { workflowId: null }] }
+            : { workflowId: w.id },
+        });
+
+        return { ...w, validEdgeCount, usersAssignedCount } as any;
+      })
+    );
+
+    return NextResponse.json(withCounts);
   } catch (error) {
     console.error('Error fetching workflows:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -71,8 +88,8 @@ export async function POST(request: NextRequest) {
         edges: {
           create: edges?.map((edge: any) => ({
             edgeId: edge.id,
-            source: edge.source,
-            target: edge.target,
+            sourceId: edge.source,
+            targetId: edge.target,
             data: edge.data || {}
           })) || []
         }

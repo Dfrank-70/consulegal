@@ -24,28 +24,7 @@ function countTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
-// Funzione per generare il messaggio di sistema per l'AI
-async function buildSystemMessage(messages: any[], user: any) {
-
-  // 2. Costruisci le istruzioni dinamiche
-  const baseInstructions = `Sei Traspolegal, un assistente legale virtuale per professionisti del mercato italiano. Rispondi in modo chiaro, preciso e formale.
-
---- ISTRUZIONI OPERATIVE ---
-
-1.  **GESTIONE FILE ALLEGATI:** Quando l'utente allega un file (PDF, DOC, DOCX), il contenuto viene sempre estratto automaticamente e incluso nel messaggio. Analizza SEMPRE il contenuto del file allegato insieme alla richiesta dell'utente e fornisci una consulenza completa e dettagliata. NON dire mai che non puoi analizzare un file - se è arrivato fino a te, significa che è già stato elaborato con successo.
-
-2.  **STILE DI RISPOSTA:** Fornisci risposte professionali, ben strutturate e complete. Usa un linguaggio tecnico appropriato ma comprensibile.
-
-3.  **ANALISI DOCUMENTALE:** Se viene allegato un documento, analizzalo approfonditamente e fornisci osservazioni specifiche sul contenuto, evidenziando aspetti legali rilevanti.`;
-  const customUserInstructions = user?.customInstructions
-    ? `\n\nISTRUZIONI SPECIFICHE AGGIUNTIVE PER QUESTO UTENTE:\n${user.customInstructions}`
-    : "";
-
-  return {
-    role: "system",
-    content: `${baseInstructions}${customUserInstructions}`,
-  };
-}
+// Funzione per generare il messaggio di sistema per l'AI (rimossa - usa system semplice)
 
 function cleanExtractedText(text: string): string {
   return text
@@ -378,7 +357,7 @@ L'utente ha inviato 1 file allegato:
         content: msg.content,
       }));
 
-      const systemMessage = await buildSystemMessage(messages, user);
+      const systemMessage = { role: "system", content: "Sei Traspolegal, un assistente legale virtuale." };
 
       const openaiClient = getOpenAIClient();
       const completion = await openaiClient.chat.completions.create({

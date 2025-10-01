@@ -15,7 +15,7 @@ export async function GET(request: Request, { params }: { params: { providerId: 
   const { providerId } = params;
 
   if (!providerId) {
-    return new NextResponse('Provider ID mancante', { status: 400 });
+    return NextResponse.json({ error: 'Provider ID mancante' }, { status: 400 });
   }
 
   try {
@@ -24,45 +24,61 @@ export async function GET(request: Request, { params }: { params: { providerId: 
     });
 
     if (!provider) {
-      return new NextResponse('Provider non trovato', { status: 404 });
+      return NextResponse.json({ error: 'Provider non trovato' }, { status: 404 });
     }
 
     const { name, config } = provider;
-    const providerConfig = config as Record<string, any>;
-    const apiKey = providerConfig.apiKey;
-    const baseURL = providerConfig.baseURL;
+    const providerConfig = (config as Record<string, any>) || {};
+    // apiKey: prima da config.apiKey, poi dal campo provider.apiKey
+    const apiKey: string | undefined = providerConfig.apiKey || (provider as any).apiKey;
+    // baseURL: da config.baseURL, altrimenti default per provider noti
+    let baseURL: string | undefined = providerConfig.baseURL;
+    const lowerName = (name || '').toLowerCase();
+    if (!baseURL) {
+      if (lowerName === 'openai') baseURL = 'https://api.openai.com/v1';
+      else if (lowerName === 'anthropic' || lowerName === 'claude') baseURL = 'https://api.anthropic.com/v1';
+    }
 
     if (!apiKey || !baseURL) {
-      return new NextResponse('Configurazione del provider incompleta (apiKey o baseURL mancanti)', { status: 400 });
+      return NextResponse.json({ error: 'Configurazione del provider incompleta (apiKey o baseURL mancanti)' }, { status: 400 });
     }
 
     // Endpoint per ottenere i modelli, specifico per provider
     // NOTA: Questo potrebbe dover essere adattato se si aggiungono provider con API diverse
     const modelsUrl = `${baseURL}/models`;
 
-    const headers: Record<string, string> = {
-      'Authorization': `Bearer ${apiKey}`,
-    };
-
-    // Header specifico per Anthropic
-    if (name.toLowerCase() === 'anthropic') {
-        headers['anthropic-version'] = '2023-06-01';
+    let headers: Record<string, string> = {};
+    if (lowerName === 'anthropic' || lowerName === 'claude') {
+      headers = {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      };
+    } else {
+      headers = {
+        'Authorization': `Bearer ${apiKey}`,
+      };
     }
 
     const apiResponse = await fetch(modelsUrl, { headers });
 
     if (!apiResponse.ok) {
-      console.error(`Errore API da ${name}:`, await apiResponse.text());
-      return new NextResponse(`Errore nella comunicazione con l'API di ${name}`, { status: 502 });
+      const body = await apiResponse.text();
+      console.error(`Errore API da ${name}:`, body);
+      return NextResponse.json({ error: `Errore nella comunicazione con l'API di ${name}`, details: body }, { status: 502 });
     }
 
     const jsonResponse = await apiResponse.json();
     let modelsFromApi: ApiModel[] = [];
 
-    if (name.toLowerCase() === 'anthropic') {
-        // La risposta di Anthropic non è standard, potrebbe non avere un campo 'data'
-        // e potrebbe essere direttamente l'array di modelli.
-        modelsFromApi = Array.isArray(jsonResponse) ? jsonResponse : [];
+    if (lowerName === 'anthropic' || lowerName === 'claude') {
+        // Anthropic: risposta recente ha la forma { data: [...] }
+        if (Array.isArray(jsonResponse?.data)) {
+          modelsFromApi = jsonResponse.data as ApiModel[];
+        } else if (Array.isArray(jsonResponse)) {
+          modelsFromApi = jsonResponse as ApiModel[];
+        } else {
+          modelsFromApi = [];
+        }
     } else {
         // La maggior parte delle API OpenAI-compatibili usa il campo 'data'
         modelsFromApi = jsonResponse.data || [];
@@ -70,7 +86,7 @@ export async function GET(request: Request, { params }: { params: { providerId: 
 
     if (!Array.isArray(modelsFromApi)) {
         console.error(`Risposta API non valida da ${name}:`, jsonResponse);
-        return new NextResponse(`Formato risposta API non valido da ${name}`, { status: 500 });
+        return NextResponse.json({ error: `Formato risposta API non valido da ${name}` }, { status: 500 });
     }
 
     const enrichedModels = modelsFromApi
@@ -78,16 +94,15 @@ export async function GET(request: Request, { params }: { params: { providerId: 
         const cost = getModelCost(model.id);
         return {
           id: model.id,
-          ...cost,
+          ...cost, // Se non noto, input/output = 0
         };
       })
-      .filter(model => model.input > 0 || model.output > 0) // Mostra solo modelli di cui conosciamo il costo
       .sort((a, b) => a.input - b.input); // Ordina per costo di input crescente
 
     return NextResponse.json(enrichedModels);
 
   } catch (error) {
     console.error('[LLM_MODELS_API]', error);
-    return new NextResponse('Errore Interno del Server', { status: 500 });
+    return NextResponse.json({ error: 'Errore Interno del Server' }, { status: 500 });
   }
 }

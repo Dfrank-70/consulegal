@@ -69,17 +69,17 @@ const OutputNode = ({ data }: { data: any }) => (
   </div>
 );
 
-const nodeTypes: NodeTypes = {
-  input: InputNode,
-  llm: LLMNode,
-  output: OutputNode,
-};
 
 export default function WorkflowEditorPage() {
+  const nodeTypes: NodeTypes = {
+    input: InputNode,
+    llm: LLMNode,
+    output: OutputNode,
+  };
   const { data: session, status } = useSession();
   const router = useRouter();
   const params = useParams();
-  const workflowId = params.id as string;
+  const workflowId = (params?.id ?? 'new') as string;
   const isNew = workflowId === 'new';
 
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -143,6 +143,16 @@ export default function WorkflowEditorPage() {
     }
   };
 
+  const onSelectionChange = useCallback(({ nodes }: { nodes: Node[] }) => {
+    if (nodes && nodes.length > 0) {
+      setSelectedNode(nodes[0]);
+      setShowNodeConfig(true);
+    } else {
+      setSelectedNode(null);
+      setShowNodeConfig(false);
+    }
+  }, []);
+
   const updateNodeData = (nodeId: string, data: any) => {
     setNodes((nds) =>
       nds.map((node) =>
@@ -195,9 +205,10 @@ export default function WorkflowEditorPage() {
         name: workflowName,
         description: workflowDescription,
         isDefault,
-        nodes: nodes.map((node) => ({ id: node.id, type: node.type, position: node.position, data: node.data })),
-        edges: edges.map((edge) => ({ id: edge.id, source: edge.source, target: edge.target, data: edge.data || {} })),
+        nodes: nodes.map(({ id, type, position, data }) => ({ id, type, position, data })),
+        edges: edges.map(({ id, source, target, data }) => ({ id, source, target, data: data || {} })),
       };
+
 
       const url = isNew ? '/api/admin/workflows' : `/api/admin/workflows/${workflowId}`;
       const method = isNew ? 'POST' : 'PUT';
@@ -260,7 +271,18 @@ export default function WorkflowEditorPage() {
           </div>
         </div>
         <div className="flex-1 bg-slate-900">
-          <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} onNodeClick={onNodeClick} nodeTypes={nodeTypes} fitView>
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onNodeClick={onNodeClick}
+            onSelectionChange={onSelectionChange}
+            onPaneClick={() => { setShowNodeConfig(false); setSelectedNode(null); }}
+            nodeTypes={nodeTypes}
+            fitView
+          >
             <Controls />
             <Background color="#444" gap={16} />
           </ReactFlow>

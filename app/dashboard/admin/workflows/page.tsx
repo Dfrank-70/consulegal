@@ -18,6 +18,9 @@ interface Workflow {
     name: string | null;
     email: string;
   }>;
+  // conteggio lato server (opzionale)
+  validEdgeCount?: number;
+  usersAssignedCount?: number;
 }
 
 export default function WorkflowsPage() {
@@ -45,6 +48,8 @@ export default function WorkflowsPage() {
     }
   };
 
+  // Cleanup rimosso: ora è automatico lato server durante i GET
+
   const deleteWorkflow = async (id: string) => {
     if (!confirm('Sei sicuro di voler eliminare questo workflow?')) return;
 
@@ -63,34 +68,30 @@ export default function WorkflowsPage() {
     }
   };
 
-  if (loading) {
-    return <div>Caricamento...</div>;
-  }
 
   return (
     <div className="h-full p-6">
       {/* Header */}
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-100">Gestione Workflow</h1>
-          <p className="text-slate-400 mt-2">Crea e gestisci i workflow AI per gli utenti</p>
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-100">Gestione Workflow</h1>
+            <p className="text-slate-400 mt-2">Crea e gestisci i workflow AI per gli utenti</p>
+          </div>
+          <div className="flex space-x-4">
+            <Link
+              href="/dashboard/admin"
+              className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
+            >
+              ← Torna al Dashboard
+            </Link>
+            <Link
+              href="/dashboard/admin/workflows/new"
+              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+            >
+              + Nuovo Workflow
+            </Link>
+          </div>
         </div>
-        <div className="flex space-x-4">
-          <Link
-            href="/dashboard/admin"
-            className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
-          >
-            ← Torna al Dashboard
-          </Link>
-          <Link
-            href="/dashboard/admin/workflows/new"
-            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-          >
-            + Nuovo Workflow
-          </Link>
-        </div>
-      </div>
-
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
           {error}
@@ -124,8 +125,8 @@ export default function WorkflowsPage() {
                     )}
                     <div className="flex items-center mt-2 text-sm text-slate-400 space-x-4">
                       <span>{workflow.nodes.length} nodi</span>
-                      <span>{workflow.edges.length} connessioni</span>
-                      <span>{workflow.users.length} utenti assegnati</span>
+                      <span>{(workflow as any).validEdgeCount ?? (workflow.edges || []).filter((e: any) => (e.sourceId || e.source) && (e.targetId || e.target)).length} connessioni</span>
+                      <span>{(workflow as any).usersAssignedCount ?? workflow.users.length} utenti assegnati</span>
                       <span>Creato: {new Date(workflow.createdAt).toLocaleDateString('it-IT')}</span>
                     </div>
                   </div>

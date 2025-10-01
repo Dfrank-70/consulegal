@@ -43,6 +43,7 @@ export interface WorkflowStep {
   nodeId: string;
   type: string;
   provider?: string;
+  model?: string;
   input: string;
   output: string;
   tokensIn: number;
@@ -51,6 +52,7 @@ export interface WorkflowStep {
   executionTime: number;
   success: boolean;
   error?: string;
+  systemPrompt?: string;
 }
 
 // Funzione per ottenere il client OpenAI
@@ -98,14 +100,26 @@ async function executeNode(
     }
 
     if (node.type === 'llm') {
-      const providerName = node.data.provider || 'OpenAI';
-      const provider = providers.find(p => p.name === providerName);
-      
+      // Supporto sia per providerId (preferito) sia per provider (nome legacy)
+      const providerById = node.data.providerId
+        ? providers.find((p: any) => p.id === node.data.providerId)
+        : undefined;
+      const providerByName = !providerById && node.data.provider
+        ? providers.find((p: any) => p.name === node.data.provider)
+        : undefined;
+      const provider = providerById || providerByName || providers.find((p: any) => p.name === 'OpenAI');
       if (!provider || !provider.isActive) {
-        throw new Error(`Provider ${providerName} non trovato o non attivo`);
+        throw new Error('Provider non trovato o non attivo');
       }
 
-      // Per ora supportiamo solo OpenAI, ma la struttura è estensibile
+      const providerName = provider.name;
+
+      // Normalizza parametri comuni
+      const modelRaw: string = (node.data.model ?? '').toString().trim();
+      const temperature = typeof node.data.temperature === 'number' ? node.data.temperature : 0.7;
+      const maxTokens = typeof node.data.maxTokens === 'number' ? node.data.maxTokens : 1000;
+
+      // Esecuzione per provider
       if (providerName === 'OpenAI') {
         const openai = getOpenAIClient();
         
@@ -114,34 +128,62 @@ async function executeNode(
         if (node.data.prompt) {
           systemPrompt += systemPrompt ? '\n\n' + node.data.prompt : node.data.prompt;
         }
+        step.systemPrompt = systemPrompt || undefined;
 
-        const messages = [
-          ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt }] : []),
-          { role: 'user' as const, content: input }
-        ];
+        const isCompletionModel = modelRaw.startsWith('text-') || modelRaw.includes('instruct');
 
-
-        const completion = await openai.chat.completions.create({
-          model: node.data.model || 'gpt-3.5-turbo',
-          messages,
-          temperature: node.data.temperature || 0.7,
-          max_tokens: node.data.maxTokens || 1000,
-        });
-        step.tokensIn = completion.usage?.prompt_tokens || 0;
-        step.output = completion.choices[0].message.content || '';
-        step.tokensOut = completion.usage?.completion_tokens || 0;
-        step.cost = ((step.tokensIn / 1000) * 0.0015) + ((step.tokensOut / 1000) * 0.002);
+        if (isCompletionModel) {
+          // Endpoint completions (prompt-based)
+          const prompt = systemPrompt ? `${systemPrompt}\n\n${input}` : input;
+          const resp = await openai.completions.create({
+            model: modelRaw,
+            prompt,
+            temperature,
+            max_tokens: maxTokens,
+          });
+          step.model = modelRaw;
+          step.tokensIn = resp.usage?.prompt_tokens || 0;
+          step.output = resp.choices?.[0]?.text || '';
+          step.tokensOut = resp.usage?.completion_tokens || 0;
+          step.cost = ((step.tokensIn / 1000) * 0.0015) + ((step.tokensOut / 1000) * 0.002);
+        } else {
+          // Endpoint chat completions
+          const messages = [
+            ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt }] : []),
+            { role: 'user' as const, content: input }
+          ];
+          const completion = await openai.chat.completions.create({
+            model: modelRaw.length ? modelRaw : 'gpt-3.5-turbo',
+            messages,
+            temperature,
+            max_tokens: maxTokens,
+          });
+          step.model = (modelRaw.length ? modelRaw : 'gpt-3.5-turbo');
+          step.tokensIn = completion.usage?.prompt_tokens || 0;
+          step.output = completion.choices[0].message.content || '';
+          step.tokensOut = completion.usage?.completion_tokens || 0;
+          step.cost = ((step.tokensIn / 1000) * 0.0015) + ((step.tokensOut / 1000) * 0.002);
+        }
         step.provider = providerName;
         step.success = true;
       } else if (providerName === 'Claude') {
         const anthropic = new Anthropic({ apiKey: provider.apiKey });
+        // Prepara system prompt combinato anche per Claude
+        const claudeSystemPrompt = ((): string | undefined => {
+          let sp = node.data.customInstruction || '';
+          if (node.data.prompt) sp += sp ? '\n\n' + node.data.prompt : node.data.prompt;
+          return sp || undefined;
+        })();
         const response = await anthropic.messages.create({
-          model: node.data.model,
-          max_tokens: node.data.maxTokens || 1024,
-          temperature: node.data.temperature,
-          system: node.data.customInstruction,
+          model: modelRaw.length ? modelRaw : 'claude-3-haiku-20240307',
+          max_tokens: typeof node.data.maxTokens === 'number' ? node.data.maxTokens : 1024,
+          temperature: typeof node.data.temperature === 'number' ? node.data.temperature : 0.7,
+          // Usa il systemPrompt combinato (customInstruction + prompt) come contesto di sistema
+          system: claudeSystemPrompt,
           messages: [{ role: 'user', content: input }],
         });
+        step.systemPrompt = claudeSystemPrompt;
+        step.model = (modelRaw.length ? modelRaw : 'claude-3-haiku-20240307');
 
         const outputText = response.content
           .filter(block => block.type === 'text')
