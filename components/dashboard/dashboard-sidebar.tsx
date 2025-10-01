@@ -49,6 +49,8 @@ export function DashboardSidebar({
   const [isAlertOpen, setIsAlertOpen] = React.useState(false);
   const [conversationIdToDelete, setConversationIdToDelete] = React.useState<string | null>(null);
 
+  const isAdmin = session?.user?.role === 'ADMIN';
+
   React.useEffect(() => {
     setConversations(initialConversations);
   }, [initialConversations]);
@@ -85,26 +87,23 @@ export function DashboardSidebar({
     }
   };
 
-  const baseNavigation = [
+  const userNavigation = [
     { name: "Nuova Chat", href: "/dashboard", icon: PlusCircle },
     { name: "Profilo", href: "/dashboard/profile", icon: User },
     { name: "Impostazioni", href: "/dashboard/settings", icon: Settings },
   ];
 
-  let navigation = [...baseNavigation];
+  const adminNavigation = [
+    { name: "Dashboard", href: "/dashboard/admin", icon: Settings }, // o un'icona più adatta
+    { name: "Gestione Utenti", href: "/dashboard/admin/users", icon: Users },
+    { name: "Gestione Piani", href: "/dashboard/admin/plans", icon: Settings },
+    { name: "Gestione Workflow", href: "/dashboard/admin/workflows", icon: Settings }, // o un'icona più adatta
+    { name: "Gestione Provider", href: "/dashboard/admin/providers", icon: Settings }, // o un'icona più adatta
+    { name: "Monitoring", href: "/dashboard/admin/monitoring", icon: Settings }, // o un'icona più adatta
+    { name: "Profilo", href: "/dashboard/profile", icon: User },
+  ];
 
-  if (session?.user?.role === "ADMIN") {
-    navigation.push({
-      name: "Gestione Utenti",
-      href: "/dashboard/admin/user-management",
-      icon: Users,
-    });
-    navigation.push({
-      name: "Gestione Piani",
-      href: "/dashboard/admin/plans",
-      icon: Settings, 
-    });
-  }
+  const navigation = isAdmin ? adminNavigation : userNavigation;
 
   const commonSidebarContent = (isMobile: boolean) => (
     <>
@@ -144,49 +143,51 @@ export function DashboardSidebar({
             </Link>
           );
         })}
-        <div className="mt-4 pt-4 border-t border-border">
-          <h3 className="px-3 text-xs font-semibold uppercase text-muted-foreground tracking-wider mb-2">
-            Le Tue Consulenze
-          </h3>
-          {conversations.length === 0 && (
-            <p className="px-3 text-sm text-muted-foreground">Nessuna consulenza trovata.</p>
-          )}
-          <div className="space-y-1">
-            {conversations.map((convo) => {
-              const isActive = currentConversationId === convo.id;
-              return (
-                <Link
-                  key={convo.id}
-                  href={{ pathname: '/dashboard', query: { conversationId: convo.id } }}
-                  className={`flex items-center justify-between rounded-md px-3 py-2 text-sm group ${
-                    isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                  }`}
-                  onClick={() => isMobile && setSidebarOpen(false)}
-                >
-                  <span className="truncate">
-                    {convo.title || `Consulenza del ${new Date(convo.createdAt).toLocaleDateString()}`}
-                  </span>
-                  <button 
-                    onClick={(e) => handleDeleteClick(e, convo.id)}
-                    className={`ml-2 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity ${
+        {!isAdmin && (
+          <div className="mt-4 pt-4 border-t border-border">
+            <h3 className="px-3 text-xs font-semibold uppercase text-muted-foreground tracking-wider mb-2">
+              Le Tue Consulenze
+            </h3>
+            {conversations.length === 0 && (
+              <p className="px-3 text-sm text-muted-foreground">Nessuna consulenza trovata.</p>
+            )}
+            <div className="space-y-1">
+              {conversations.map((convo) => {
+                const isActive = currentConversationId === convo.id;
+                return (
+                  <Link
+                    key={convo.id}
+                    href={{ pathname: '/dashboard', query: { conversationId: convo.id } }}
+                    className={`flex items-center justify-between rounded-md px-3 py-2 text-sm group ${
                       isActive
-                        ? "text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary/20"
-                        : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                     }`}
-                    aria-label="Elimina conversazione"
+                    onClick={() => isMobile && setSidebarOpen(false)}
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </Link>
-              );
-            })}
+                    <span className="truncate">
+                      {convo.title || `Consulenza del ${new Date(convo.createdAt).toLocaleDateString()}`}
+                    </span>
+                    <button 
+                      onClick={(e) => handleDeleteClick(e, convo.id)}
+                      className={`ml-2 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity ${
+                        isActive
+                          ? "text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary/20"
+                          : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                      }`}
+                      aria-label="Elimina conversazione"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </Link>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
       </div>
       <div className="border-t p-4">
-                <div className="mb-4">
+        <div className="mb-4">
           <p className="text-sm font-medium text-foreground truncate">
             {session?.user?.name || session?.user?.email}
           </p>
@@ -195,26 +196,28 @@ export function DashboardSidebar({
           </p>
         </div>
 
-        <div className="space-y-2">
-          <h4 className="px-3 text-xs font-semibold uppercase text-muted-foreground tracking-wider">Abbonamento</h4>
-          {subscription ? (
-            <div className="px-3 text-sm text-muted-foreground space-y-1">
-              <p><span className="font-semibold text-foreground">Piano:</span> {subscription.planName || 'N/A'}</p>
-              <p><span className="font-semibold text-foreground">Stato:</span> <span className={`capitalize px-2 py-1 text-xs rounded-full ${subscription.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{subscription.status}</span></p>
-                            <p><span className="font-semibold text-foreground">Scadenza:</span> {subscription.currentPeriodEnd ? format(new Date(subscription.currentPeriodEnd), 'dd/MM/yyyy') : 'N/A'}</p>
-            </div>
-          ) : (
-            <div className="px-3 text-sm">
-              <p className="text-muted-foreground">Nessun piano attivo.</p>
-              <Button variant="ghost" size="sm" className="mt-2 -ml-2" asChild>
-                <Link href={{ pathname: "/dashboard/plans" }}>
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  Upgrade
-                </Link>
-              </Button>
-            </div>
-          )}
-        </div>
+        {!isAdmin && (
+          <div className="space-y-2">
+            <h4 className="px-3 text-xs font-semibold uppercase text-muted-foreground tracking-wider">Abbonamento</h4>
+            {subscription ? (
+              <div className="px-3 text-sm text-muted-foreground space-y-1">
+                <p><span className="font-semibold text-foreground">Piano:</span> {subscription.planName || 'N/A'}</p>
+                <p><span className="font-semibold text-foreground">Stato:</span> <span className={`capitalize px-2 py-1 text-xs rounded-full ${subscription.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{subscription.status}</span></p>
+                <p><span className="font-semibold text-foreground">Scadenza:</span> {subscription.currentPeriodEnd ? format(new Date(subscription.currentPeriodEnd), 'dd/MM/yyyy') : 'N/A'}</p>
+              </div>
+            ) : (
+              <div className="px-3 text-sm">
+                <p className="text-muted-foreground">Nessun piano attivo.</p>
+                <Button variant="ghost" size="sm" className="mt-2 -ml-2" asChild>
+                  <Link href={{ pathname: "/dashboard/plans" }}>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Upgrade
+                  </Link>
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
 
         <form action={logout} className="mt-4 pt-4 border-t border-border">
             <Button
@@ -251,14 +254,14 @@ export function DashboardSidebar({
       {/* Mobile Sidebar */}
       <div className={`fixed inset-0 z-40 flex lg:hidden ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out`}>
         <div className="fixed inset-0 bg-black/60" onClick={() => setSidebarOpen(false)}></div>
-        <div className="relative flex w-full max-w-xs flex-col bg-background">
+        <div className={`relative flex w-full max-w-xs flex-col ${isAdmin ? 'bg-slate-900' : 'bg-background'}`}>
           {commonSidebarContent(true)}
         </div>
       </div>
 
       {/* Desktop Sidebar */}
       <div className="hidden lg:fixed lg:inset-y-0 lg:z-40 lg:flex lg:w-72 lg:flex-col">
-        <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-border bg-background">
+        <div className={`flex grow flex-col gap-y-5 overflow-y-auto border-r border-border ${isAdmin ? 'bg-slate-900' : 'bg-background'}`}>
           {commonSidebarContent(false)}
         </div>
       </div>

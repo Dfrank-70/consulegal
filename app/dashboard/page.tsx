@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { redirect } from 'next/navigation';
 import { ChatInterface } from "@/components/chat/chat-interface";
 import { getUserSubscription } from "@/lib/subscription";
 
@@ -9,16 +10,18 @@ export default async function DashboardPage({
 }: {
   searchParams: { [key: string]: string | string[] | undefined };
 }) {
-  // Attendere searchParams prima di utilizzarlo (Next.js 15 requirement)
-  const params = await searchParams;
-  const conversationId = params.conversationId;
-  
   const session = await auth();
   if (!session?.user?.id) {
-    // In a real app, you'd likely redirect to login
-    return <div>Non autorizzato</div>;
+    return <div>Non autorizzato</div>; 
   }
 
+  // Se l'utente è un admin, reindirizza alla dashboard admin
+  if (session.user.role === 'ADMIN') {
+    redirect('/dashboard/admin');
+  }
+
+  // Logica per gli utenti non-admin
+  const conversationId = searchParams.conversationId;
   const subscription = await getUserSubscription(session.user.id);
   const isSubscribed = 
     !!subscription &&

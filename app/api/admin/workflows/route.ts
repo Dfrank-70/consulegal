@@ -65,14 +65,14 @@ export async function POST(request: NextRequest) {
             nodeId: node.id,
             type: node.type,
             position: node.position,
-            data: node.data
+            data: node.data || {}
           })) || []
         },
         edges: {
           create: edges?.map((edge: any) => ({
             edgeId: edge.id,
-            sourceId: edge.source,
-            targetId: edge.target,
+            source: edge.source,
+            target: edge.target,
             data: edge.data || {}
           })) || []
         }

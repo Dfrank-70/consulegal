@@ -44,38 +44,48 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const body = await request.json();
     const { name, description, isDefault, nodes, edges } = body;
 
-    await prisma.$transaction([
-      prisma.workflowNode.deleteMany({ where: { workflowId: id } }),
-      prisma.workflowEdge.deleteMany({ where: { workflowId: id } }),
-    ]);
+    const updatedWorkflow = await prisma.$transaction(async (tx) => {
+      // Step 1: Update workflow main data
+      await tx.workflow.update({
+        where: { id },
+        data: { name, description, isDefault },
+      });
 
-    const updatedWorkflow = await prisma.workflow.update({
-      where: { id },
-      data: {
-        name,
-        description,
-        isDefault,
-        nodes: {
-          create: nodes.map((node: any) => ({ // Qui 'nodes' è corretto perché è una relazione del modello Workflow
+      // Step 2: Delete old nodes and edges
+      await tx.workflowNode.deleteMany({ where: { workflowId: id } });
+      await tx.workflowEdge.deleteMany({ where: { workflowId: id } });
+
+      // Step 3: Create new nodes
+      if (nodes && nodes.length > 0) {
+        await tx.workflowNode.createMany({
+          data: nodes.map((node: any) => ({
+            workflowId: id,
             nodeId: node.id,
             type: node.type,
             position: node.position,
-            data: node.data,
+            data: node.data || {},
           })),
-        },
-        edges: {
-          create: edges.map((edge: any) => ({ // Qui 'edges' è corretto perché è una relazione del modello Workflow
+        });
+      }
+
+      // Step 4: Create new edges
+      if (edges && edges.length > 0) {
+        await tx.workflowEdge.createMany({
+          data: edges.map((edge: any) => ({
+            workflowId: id,
             edgeId: edge.id,
             sourceId: edge.source,
             targetId: edge.target,
-            data: edge.data,
+            data: edge.data || {},
           })),
-        },
-      },
-      include: {
-        nodes: true,
-        edges: true,
-      },
+        });
+      }
+
+      // Step 5: Return the updated workflow
+      return tx.workflow.findUnique({
+        where: { id },
+        include: { nodes: true, edges: true },
+      });
     });
 
     return NextResponse.json(updatedWorkflow);
