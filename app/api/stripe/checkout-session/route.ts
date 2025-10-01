@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
     }
 
     const appUrl = new URL(req.url).origin;
+    console.log('Checkout appUrl:', appUrl, 'from req.url:', req.url);
 
     // 1. Trova l'utente nel database
     const userFromDb: PrismaUser | null = await prisma.user.findUnique({
@@ -99,6 +100,8 @@ export async function POST(req: NextRequest) {
       //   userId: user.id,
       // },
     });
+
+    console.log('Stripe session URLs - success:', `${appUrl}/dashboard?new-subscription=true`, 'cancel:', `${appUrl}/pricing`);
 
     if (!stripeSession.url) {
         return NextResponse.json({ error: 'Could not create Stripe session' }, { status: 500 });
