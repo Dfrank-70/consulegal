@@ -22,8 +22,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Price ID is required' }, { status: 400 });
     }
 
-    const appUrl = new URL(req.url).origin;
-    console.log('Checkout appUrl:', appUrl, 'from req.url:', req.url);
+    // Usa host header invece di req.url per supportare client remoti
+    const host = req.headers.get('host') || 'localhost:3000';
+    const protocol = req.headers.get('x-forwarded-proto') || 'http';
+    const appUrl = `${protocol}://${host}`;
+    console.log('Checkout appUrl:', appUrl, 'from host header:', host);
 
     // 1. Trova l'utente nel database
     const userFromDb: PrismaUser | null = await prisma.user.findUnique({

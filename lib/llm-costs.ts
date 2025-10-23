@@ -16,6 +16,8 @@ interface ModelCost {
 
 export const modelCosts: Record<string, ModelCost> = {
   // === OpenAI ===
+  'gpt-4o': { input: 2.50, output: 10.00 },
+  'gpt-4o-mini': { input: 0.15, output: 0.60 },
   'gpt-4-turbo': { input: 10.00, output: 30.00 },
   'gpt-4-turbo-2024-04-09': { input: 10.00, output: 30.00 },
   'gpt-4-vision-preview': { input: 10.00, output: 30.00 },
@@ -26,6 +28,7 @@ export const modelCosts: Record<string, ModelCost> = {
   'gpt-3.5-turbo-instruct': { input: 1.50, output: 2.00 },
 
   // === Anthropic ===
+  'claude-3-5-sonnet-20241022': { input: 3.00, output: 15.00 },
   'claude-3-opus-20240229': { input: 15.00, output: 75.00 },
   'claude-3-sonnet-20240229': { input: 3.00, output: 15.00 },
   'claude-3-haiku-20240307': { input: 0.25, output: 1.25 },
@@ -40,3 +43,23 @@ export const modelCosts: Record<string, ModelCost> = {
 export const getModelCost = (modelName: string): ModelCost => {
   return modelCosts[modelName] || { input: 0, output: 0 };
 };
+
+/**
+ * Calcola il costo totale per una chiamata LLM
+ * @param provider - Provider LLM ('openai' o 'anthropic')
+ * @param model - Nome del modello
+ * @param inputTokens - Token in input
+ * @param outputTokens - Token in output
+ * @returns Costo totale in USD
+ */
+export function calculateCost(
+  provider: string,
+  model: string,
+  inputTokens: number,
+  outputTokens: number
+): number {
+  const costs = getModelCost(model);
+  const inputCost = (inputTokens / 1_000_000) * costs.input;
+  const outputCost = (outputTokens / 1_000_000) * costs.output;
+  return inputCost + outputCost;
+}

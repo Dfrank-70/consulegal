@@ -48,6 +48,23 @@ export function DashboardClientLayout({
     }
   }, [searchParams, router]);
 
+  // Fix viewport height su mobile quando barra browser appare/scompare
+  useEffect(() => {
+    const setVH = () => {
+      const vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--vh', `${vh}px`);
+    };
+    
+    setVH();
+    window.addEventListener('resize', setVH);
+    window.addEventListener('orientationchange', setVH);
+    
+    return () => {
+      window.removeEventListener('resize', setVH);
+      window.removeEventListener('orientationchange', setVH);
+    };
+  }, []);
+
   return (
     <div className="flex min-h-screen bg-background">
       {sidebarOpen && (
@@ -65,7 +82,7 @@ export function DashboardClientLayout({
         subscription={subscription}
       />
 
-      <div className="lg:pl-64 flex flex-col flex-1">
+      <div className="lg:pl-64 flex flex-col flex-1 h-[100dvh]">
         <header className="sticky top-0 z-20 flex h-16 items-center bg-background border-b lg:hidden">
           <div className="flex items-center px-4 w-full justify-between">
             <button
@@ -81,7 +98,7 @@ export function DashboardClientLayout({
             <div className="w-5"></div>
           </div>
         </header>
-        <main className="flex-1 py-6 px-4 sm:px-6 md:px-8">
+        <main className="flex-1 py-0 px-0 sm:py-6 sm:px-6 md:px-8 overflow-hidden">
           <Suspense fallback={<div className="flex h-full items-center justify-center"><div className='h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent'></div><span className='ml-2'>Caricamento pagina...</span></div>}>
             {children}
           </Suspense>

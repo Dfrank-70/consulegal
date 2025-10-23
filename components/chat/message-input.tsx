@@ -132,11 +132,11 @@ export function MessageInput({ onSend, isLoading }: MessageInputProps) {
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Scrivi il tuo messaggio qui..."
-          className="flex-1 resize-none border-0 bg-transparent pr-20 shadow-none focus-visible:ring-0"
+          className="flex-1 resize-none border-0 bg-transparent pr-24 sm:pr-20 shadow-none focus-visible:ring-0"
           rows={1}
           disabled={isLoading}
         />
-        <div className="absolute right-2 bottom-2 flex items-center space-x-2">
+        <div className="absolute right-2 bottom-2 flex items-center gap-1 sm:gap-2 z-10">
           <input
             type="file"
             ref={fileInputRef}
@@ -147,24 +147,24 @@ export function MessageInput({ onSend, isLoading }: MessageInputProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-10 w-10 sm:h-8 sm:w-8 bg-background hover:bg-accent"
             onClick={handleAttachClick}
             disabled={isLoading}
             title="Allega un file"
           >
-            <Paperclip className="h-4 w-4" />
+            <Paperclip className="h-5 w-5 sm:h-4 sm:w-4" />
           </Button>
           <Button
             type="button"
             size="icon"
-            className="h-8 w-8"
+            className="h-10 w-10 sm:h-8 sm:w-8"
             onClick={handleSend}
             disabled={isLoading || (!message.trim() && !file)}
           >
             {isLoading ? (
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              <div className="h-5 w-5 sm:h-4 sm:w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
             ) : (
-              <Send className="h-4 w-4" />
+              <Send className="h-5 w-5 sm:h-4 sm:w-4" />
             )}
           </Button>
         </div>

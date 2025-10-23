@@ -33,8 +33,8 @@ export function LoginForm() {
       if (result?.error) {
         setError("Credenziali non valide. Riprova.");
       } else {
-        router.refresh();
-        router.push("/dashboard");
+        // Redirect usando window.location per host dinamico
+        window.location.href = "/dashboard";
       }
     } catch (error) {
       console.error("Login error:", error);

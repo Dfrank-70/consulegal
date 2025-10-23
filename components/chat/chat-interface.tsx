@@ -283,9 +283,9 @@ export function ChatInterface({ selectedConversationId, isSubscribed }: ChatInte
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)]">
+    <div className="flex flex-col h-full w-full">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b">
+      <div className="flex flex-wrap items-center justify-between gap-2 p-3 sm:p-4 border-b">
         {isEditingTitle ? (
           <input 
             type="text"
@@ -297,8 +297,8 @@ export function ChatInterface({ selectedConversationId, isSubscribed }: ChatInte
             autoFocus
           />
         ) : (
-          <div className="flex items-center gap-2 cursor-pointer group" onClick={handleTitleClick}>
-            <h1 className="text-xl font-semibold">
+          <div className="flex items-center gap-2 cursor-pointer group min-w-0" onClick={handleTitleClick}>
+            <h1 className="text-lg sm:text-xl font-semibold truncate">
               {conversationTitle || "Nuova Consulenza"}
             </h1>
             {currentConversationId && (
@@ -306,19 +306,20 @@ export function ChatInterface({ selectedConversationId, isSubscribed }: ChatInte
             )}
           </div>
         )}
-        <div className="flex items-center gap-4">
-          <div className="text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <div className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
             <span className="mr-2">Token: {tokenCount.input + tokenCount.output}</span>
             <span className="text-xs">(In: {tokenCount.input} / Out: {tokenCount.output})</span>
           </div>
-          <Button variant="outline" size="sm" onClick={startNewConversation}>
-            Nuova Conversazione
+          <Button variant="outline" size="sm" onClick={startNewConversation} className="text-xs sm:text-sm">
+            <span className="hidden sm:inline">Nuova Conversazione</span>
+            <span className="sm:hidden">Nuova</span>
           </Button>
         </div>
       </div>
 
       {/* Message Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 sm:p-4 space-y-4">
         {showSubscriptionAlert ? (
           <Alert variant="destructive" className="mb-4">
             <Terminal className="w-4 h-4" />
@@ -356,7 +357,7 @@ export function ChatInterface({ selectedConversationId, isSubscribed }: ChatInte
       </div>
 
       {/* Input Area */}
-      <div className="p-4 border-t">
+      <div className="p-2 sm:p-4 border-t">
         {error && (
           <Alert variant="destructive" className="mb-4">
             <Terminal className="w-4 w-4" />

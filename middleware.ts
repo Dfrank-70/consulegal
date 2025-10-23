@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 
 export async function middleware(request: NextRequest) {
+  console.log(`[Middleware] Path: ${request.nextUrl.pathname}`);
   const { pathname } = request.nextUrl;
 
   // Paths that are always accessible

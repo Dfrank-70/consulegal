@@ -219,17 +219,21 @@ export function DashboardSidebar({
           </div>
         )}
 
-        <form action={logout} className="mt-4 pt-4 border-t border-border">
+        <div className="mt-4 pt-4 border-t border-border">
             <Button
               variant="outline"
               size="sm"
               className="w-full justify-start"
-              type="submit"
+              type="button"
+              onClick={async () => {
+                await logout();
+                window.location.href = "/login";
+              }}
             >
               <LogOut className="mr-2 h-4 w-4" />
               Logout
             </Button>
-          </form>
+          </div>
       </div>
     </>
   );

@@ -1,0 +1,160 @@
+{
+  "info": {
+    "name": "ConsuLegal RAG API",
+    "description": "Collection per testare le API del sistema RAG",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Create RAG Node",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Normativa Trasporti 2024\",\n  \"description\": \"Raccolta di leggi e circolari sul trasporto merci\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3000/api/rag/nodes",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api", "rag", "nodes"]
+        },
+        "description": "Crea un nuovo nodo RAG (contenitore logico per documenti)"
+      },
+      "response": []
+    },
+    {
+      "name": "2. List RAG Nodes",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:3000/api/rag/nodes",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api", "rag", "nodes"]
+        },
+        "description": "Recupera tutti i nodi RAG esistenti"
+      },
+      "response": []
+    },
+    {
+      "name": "3. Upload Document",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "/path/to/your/document.pdf",
+              "description": "Sostituisci con il path del tuo file (PDF, DOCX, DOC, TXT)"
+            }
+          ]
+        },
+        "url": {
+          "raw": "http://localhost:3000/api/rag/nodes/{{nodeId}}/upload",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api", "rag", "nodes", "{{nodeId}}", "upload"]
+        },
+        "description": "Carica un documento nel nodo RAG. Sostituisci {{nodeId}} con l'ID del nodo creato."
+      },
+      "response": []
+    },
+    {
+      "name": "4. Query (Retrieval Only)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nodeId\": \"{{nodeId}}\",\n  \"query\": \"Quali sono gli obblighi per il trasporto di merci pericolose?\",\n  \"topK\": 20,\n  \"returnK\": 5,\n  \"hybridAlpha\": 0.5\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3000/api/rag/query",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api", "rag", "query"]
+        },
+        "description": "Esegue solo il retrieval senza chiamare l'LLM. Utile per testare la qualità dei risultati."
+      },
+      "response": []
+    },
+    {
+      "name": "5. Answer (Full RAG Pipeline)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nodeId\": \"{{nodeId}}\",\n  \"query\": \"Quali sono gli obblighi per il trasporto di merci pericolose?\",\n  \"topK\": 20,\n  \"returnK\": 5,\n  \"temperature\": 0.1,\n  \"model\": \"gpt-4o-mini\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3000/api/rag/answer",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api", "rag", "answer"]
+        },
+        "description": "Pipeline completa: retrieval → LLM → risposta con citazioni. Modelli supportati: gpt-4o-mini, gpt-4o, claude-3-5-sonnet-20241022"
+      },
+      "response": []
+    },
+    {
+      "name": "6. Answer (Claude)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nodeId\": \"{{nodeId}}\",\n  \"query\": \"Riassumi i punti principali del documento\",\n  \"topK\": 20,\n  \"returnK\": 5,\n  \"temperature\": 0.1,\n  \"model\": \"claude-3-5-sonnet-20241022\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3000/api/rag/answer",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api", "rag", "answer"]
+        },
+        "description": "Stessa pipeline ma usando Claude invece di OpenAI"
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "nodeId",
+      "value": "clxxx...",
+      "type": "string",
+      "description": "Sostituisci con l'ID del nodo RAG creato"
+    }
+  ]
+}

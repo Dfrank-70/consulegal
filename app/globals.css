@@ -73,4 +73,12 @@
   body {
     @apply bg-background text-foreground;
   }
+  
+  /* Fix mobile viewport height per barre browser dinamiche */
+  @supports not (height: 100dvh) {
+    html, body {
+      height: 100vh;
+      height: -webkit-fill-available;
+    }
+  }
 }

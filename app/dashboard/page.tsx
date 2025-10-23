@@ -21,7 +21,20 @@ export default async function DashboardPage({
   }
 
   // Logica per gli utenti non-admin
-  const conversationId = searchParams.conversationId;
+  const searchParamsResolved = await searchParams;
+  const conversationId = searchParamsResolved.conversationId;
+  const newSubscription = searchParamsResolved['new-subscription'];
+  
+  // Se l'utente torna da Stripe dopo acquisto, sincronizza l'abbonamento
+  if (newSubscription === 'true') {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/api/admin/sync-subscription`, {
+      method: 'POST',
+    });
+    if (response.ok) {
+      console.log('Abbonamento sincronizzato dopo acquisto Stripe');
+    }
+  }
+  
   const subscription = await getUserSubscription(session.user.id);
   const isSubscribed = 
     !!subscription &&
@@ -29,7 +42,7 @@ export default async function DashboardPage({
     subscription.currentPeriodEnd.getTime() > Date.now();
 
   return (
-    <div className="container mx-auto h-full">
+    <div className="h-full w-full">
       <ChatInterface 
         selectedConversationId={typeof conversationId === 'string' ? conversationId : null}
         isSubscribed={isSubscribed} 

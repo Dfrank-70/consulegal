@@ -324,13 +324,13 @@ export default function WorkflowEditorPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-300">Prompt</label>
+                  <label className="block text-sm font-medium text-slate-300">Agent Instruction</label>
                   <textarea
                     value={selectedNode.data.prompt || ''}
                     onChange={(e) => updateNodeData(selectedNode.id, { prompt: e.target.value })}
                     className="mt-1 block w-full bg-slate-700 border-slate-500 rounded-md px-3 py-2 text-white"
                     rows={4}
-                    placeholder="Prompt per questo nodo..."
+                    placeholder="Istruzioni per questo agente..."
                   />
                 </div>
                 <div>
