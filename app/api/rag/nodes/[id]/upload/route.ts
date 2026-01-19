@@ -13,7 +13,7 @@ import { randomUUID } from 'crypto';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB for PoC
+const MAX_FILE_SIZE = 1 * 1024 * 1024; // 1MB
 const ROOT = path.join(process.cwd(), 'ragdata');
 
 export async function POST(

@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react";
 import { logout } from "@/app/dashboard/actions";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { User, Settings, LogOut, X, Users, PlusCircle, Trash2, Sparkles } from "lucide-react";
+import { User, Settings, LogOut, X, Users, PlusCircle, Trash2, Sparkles, Database } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -99,6 +99,7 @@ export function DashboardSidebar({
     { name: "Gestione Piani", href: "/dashboard/admin/plans", icon: Settings },
     { name: "Gestione Workflow", href: "/dashboard/admin/workflows", icon: Settings }, // o un'icona più adatta
     { name: "Gestione Provider", href: "/dashboard/admin/providers", icon: Settings }, // o un'icona più adatta
+    { name: "Gestione RAG", href: "/dashboard/admin/rag", icon: Database },
     { name: "Monitoring", href: "/dashboard/admin/monitoring", icon: Settings }, // o un'icona più adatta
     { name: "Profilo", href: "/dashboard/profile", icon: User },
   ];
