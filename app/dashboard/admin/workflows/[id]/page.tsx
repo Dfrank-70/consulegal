@@ -69,11 +69,24 @@ const OutputNode = ({ data }: { data: any }) => (
   </div>
 );
 
+const RAGNode = ({ data }: { data: any }) => (
+  <div className="px-4 py-2 shadow-md rounded-md bg-purple-900/50 border-2 border-purple-500 text-white">
+    <Handle type="target" position={Position.Left} style={{ background: '#A78BFA', borderColor: 'transparent' }} />
+    <div className="font-bold">RAG Query</div>
+    <div className="text-sm text-purple-300">{data.ragNodeName || 'Non configurato'}</div>
+    {data.topK && (
+      <div className="text-xs text-slate-400 mt-1">Top-{data.topK}</div>
+    )}
+    <Handle type="source" position={Position.Right} style={{ background: '#A78BFA', borderColor: 'transparent' }} />
+  </div>
+);
+
 
 export default function WorkflowEditorPage() {
   const nodeTypes: NodeTypes = {
     input: InputNode,
     llm: LLMNode,
+    rag: RAGNode,
     output: OutputNode,
   };
   const { data: session, status } = useSession();
@@ -91,6 +104,7 @@ export default function WorkflowEditorPage() {
   const [localProviders, setLocalProviders] = useState<LLMProvider[]>([]);
   const [availableModels, setAvailableModels] = useState<Record<string, { id: string; input: number; output: number; }[]>>({});
   const [loadingModels, setLoadingModels] = useState<Record<string, boolean>>({});
+  const [ragNodes, setRagNodes] = useState<Array<{ id: string; name: string; }>>([]);
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -104,6 +118,12 @@ export default function WorkflowEditorPage() {
         const providersData = await providersRes.json();
         providers = providersData; // Aggiorna la variabile globale
         setLocalProviders(providersData);
+
+        const ragNodesRes = await fetch('/api/rag/nodes');
+        if (ragNodesRes.ok) {
+          const ragNodesData = await ragNodesRes.json();
+          setRagNodes(ragNodesData.nodes || []);
+        }
 
         if (!isNew) {
           const workflowRes = await fetch(`/api/admin/workflows/${workflowId}`);
@@ -260,6 +280,7 @@ export default function WorkflowEditorPage() {
           <div className="space-y-2">
             <button onClick={() => addNode('input')} className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded text-sm">+ Input</button>
             <button onClick={() => addNode('llm')} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded text-sm">+ LLM</button>
+            <button onClick={() => addNode('rag')} className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 px-4 rounded text-sm">+ RAG Query</button>
             <button onClick={() => addNode('output')} className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded text-sm">+ Output</button>
           </div>
           <div className="mt-8">
@@ -341,6 +362,52 @@ export default function WorkflowEditorPage() {
                     onChange={(e) => updateNodeData(selectedNode.id, { temperature: parseFloat(e.target.value) })}
                     className="mt-1 block w-full bg-slate-700 border-slate-500 rounded-md px-3 py-2 text-white"
                   />
+                </div>
+              </div>
+            )}
+            {selectedNode.type === 'rag' && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300">Nodo RAG</label>
+                  <select
+                    value={selectedNode.data.ragNodeId || ''}
+                    onChange={(e) => {
+                      const selectedRagNode = ragNodes.find(n => n.id === e.target.value);
+                      updateNodeData(selectedNode.id, { 
+                        ragNodeId: e.target.value,
+                        ragNodeName: selectedRagNode?.name || ''
+                      });
+                    }}
+                    className="mt-1 block w-full bg-slate-700 border-slate-500 rounded-md px-3 py-2 text-white"
+                  >
+                    <option value="">Seleziona nodo RAG...</option>
+                    {ragNodes.map((node) => (
+                      <option key={node.id} value={node.id}>{node.name}</option>
+                    ))}
+                  </select>
+                  {ragNodes.length === 0 && (
+                    <p className="text-xs text-yellow-400 mt-1">Nessun nodo RAG disponibile. Creane uno in /admin/rag-test</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300">Top-K Risultati</label>
+                  <input
+                    type="number" min="1" max="20" step="1"
+                    value={selectedNode.data.topK || 5}
+                    onChange={(e) => updateNodeData(selectedNode.id, { topK: parseInt(e.target.value) })}
+                    className="mt-1 block w-full bg-slate-700 border-slate-500 rounded-md px-3 py-2 text-white"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">Numero di chunk da recuperare dal RAG</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300">Alpha (Hybrid Balance)</label>
+                  <input
+                    type="number" min="0" max="1" step="0.1"
+                    value={selectedNode.data.alpha || 0.5}
+                    onChange={(e) => updateNodeData(selectedNode.id, { alpha: parseFloat(e.target.value) })}
+                    className="mt-1 block w-full bg-slate-700 border-slate-500 rounded-md px-3 py-2 text-white"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">0 = solo text search, 1 = solo vector, 0.5 = bilanciato</p>
                 </div>
               </div>
             )}

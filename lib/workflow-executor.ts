@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import prisma from '@/lib/prisma';
+import { hybridRetrieval } from '@/lib/rag/retrieval';
 
 // Tipi per i nodi del workflow
 export interface WorkflowNode {
@@ -96,6 +97,48 @@ async function executeNode(
       // Nodo di output - passa semplicemente il testo
       step.output = input;
       step.success = true;
+      return step;
+    }
+
+    if (node.type === 'rag') {
+      // Nodo RAG - recupera contesti rilevanti dal database
+      const ragNodeId = node.data.ragNodeId;
+      if (!ragNodeId) {
+        throw new Error('Nodo RAG non configurato: manca ragNodeId');
+      }
+
+      const topK = typeof node.data.topK === 'number' ? node.data.topK : 5;
+      const alpha = typeof node.data.alpha === 'number' ? node.data.alpha : 0.5;
+
+      console.log(`[RAG] Querying node ${ragNodeId} with query: "${input.substring(0, 100)}..."`);
+      
+      // Esegui hybrid retrieval
+      const contexts = await hybridRetrieval(ragNodeId, input, {
+        returnK: topK,
+        alpha: alpha,
+        topK: 20 // Recupera 20 ma ritorna topK migliori
+      });
+
+      console.log(`[RAG] Retrieved ${contexts.length} contexts`);
+
+      if (contexts.length === 0) {
+        step.output = `[RAG Query: "${input}"]
+
+Nessun documento rilevante trovato nel database.`;
+      } else {
+        // Formatta i contesti per il prossimo nodo
+        const contextText = contexts.map((ctx, i) => 
+          `[Fonte ${i + 1}: ${ctx.filename} - Score: ${ctx.score.toFixed(3)}]\n${ctx.content}`
+        ).join('\n\n---\n\n');
+
+        step.output = `[RAG Query: "${input}"]\n\nContesti rilevanti trovati (${contexts.length}):\n\n${contextText}`;
+      }
+
+      // Calcola token approssimativi
+      step.tokensIn = Math.ceil(input.length / 4);
+      step.tokensOut = Math.ceil(step.output.length / 4);
+      step.success = true;
+      
       return step;
     }
 
