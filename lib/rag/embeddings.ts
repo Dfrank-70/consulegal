@@ -44,6 +44,29 @@ export class OpenAIEmbeddingsAdapter implements EmbeddingsAdapter {
     return embeddings[0];
   }
 
+  async embedBatch(texts: string[], batchSize: number = 2): Promise<number[][]> {
+    if (texts.length === 0) {
+      return [];
+    }
+
+    const allEmbeddings: number[][] = [];
+    
+    for (let i = 0; i < texts.length; i += batchSize) {
+      const batch = texts.slice(i, i + batchSize);
+      console.log(`[EMBEDDINGS] Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(texts.length / batchSize)} (${batch.length} chunks)`);
+      
+      try {
+        const batchEmbeddings = await this.embed(batch);
+        allEmbeddings.push(...batchEmbeddings);
+      } catch (error) {
+        console.error(`[EMBEDDINGS] Error in batch ${i / batchSize + 1}:`, error);
+        throw error;
+      }
+    }
+
+    return allEmbeddings;
+  }
+
   getModel(): string {
     return this.model;
   }

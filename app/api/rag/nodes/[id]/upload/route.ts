@@ -111,54 +111,87 @@ export async function POST(
       console.log(`[RAG INGEST] Document parsed. Streamed: ${parsed.metadata?.streamed}`);
 
       if (parsed.text) {
+        if (typeof parsed.text === 'string') {
+          console.log(`[RAG UPLOAD] Text length: ${parsed.text.length} chars`);
+        } else {
+          console.log('[RAG UPLOAD] Text is a stream');
+        }
+        
         // Step 2: Chunk text
         const chunkStart = Date.now();
+        console.log('[RAG UPLOAD] Starting chunking...');
         const chunks = await chunkTextWithPreset(parsed.text, 'default', {
           documentId: document.id,
           pages: parsed.metadata?.pages,
         });
+        console.log(`[RAG UPLOAD] Chunking complete: ${chunks.length} chunks created`);
         processingTimings.chunk_ms = Date.now() - chunkStart;
 
         if (chunks.length > 0) {
+          console.log('[RAG UPLOAD] Step 3: Starting DB chunk inserts...');
           // Step 3: Save chunks to database
-          const chunkRecords = await Promise.all(
-            chunks.map((chunk) =>
-              prisma.ragChunk.create({
-                data: {
-                  documentId: document.id,
-                  content: chunk.content,
-                  chunkIndex: chunk.chunkIndex,
-                  startChar: chunk.startChar,
-                  endChar: chunk.endChar,
-                  metadata: chunk.metadata,
-                },
-              })
-            )
-          );
+          const CHUNK_BATCH_SIZE = 2;
+          const chunkRecords: any[] = [];
+          console.log(`[RAG UPLOAD] Saving ${chunks.length} chunks to DB (batch size: ${CHUNK_BATCH_SIZE})`);
+          
+          for (let i = 0; i < chunks.length; i++) {
+            const chunk = chunks[i];
+            const chunkRecord = await prisma.ragChunk.create({
+              data: {
+                documentId: document.id,
+                content: chunk.content,
+                chunkIndex: chunk.chunkIndex,
+                startChar: chunk.startChar,
+                endChar: chunk.endChar,
+                metadata: chunk.metadata,
+              },
+            });
+            chunkRecords.push(chunkRecord);
+            if ((i + 1) % 5 === 0 || i === chunks.length - 1) {
+              console.log(`[RAG UPLOAD] Saved chunk ${i + 1}/${chunks.length}`);
+            }
+          }
           chunksCreated = chunkRecords.length;
 
+          console.log('[RAG UPLOAD] Step 4: Starting embedding generation...');
           // Step 4: Generate embeddings
           const embedStart = Date.now();
           const embeddingsAdapter = getEmbeddingsAdapter();
           const chunkTexts = chunkRecords.map((c) => c.content);
-          const embeddings = await embeddingsAdapter.embed(chunkTexts);
+          const BATCH_SIZE = 2;
+          console.log(`[RAG UPLOAD] Generating embeddings for ${chunkTexts.length} chunks (batch size: ${BATCH_SIZE})`);
+          const embeddings = await embeddingsAdapter.embedBatch(chunkTexts, BATCH_SIZE);
+          console.log('[RAG UPLOAD] Embeddings generated successfully');
           processingTimings.embed_ms = Date.now() - embedStart;
 
+          console.log('[RAG UPLOAD] Step 5: Starting embedding DB inserts...');
           // Step 5: Save embeddings to database
-          const embeddingInserts = chunkRecords.map((chunk, idx) => {
-            const vectorString = `[${embeddings[idx].join(',')}]`;
-            return prisma.$executeRawUnsafe(
-              `INSERT INTO rag_embeddings (id, "chunkId", embedding, model, dimension, "createdAt")
-               VALUES ($1, $2, $3::vector, $4, $5, NOW())`,
-              `emb_${chunk.id}`,
-              chunk.id,
-              vectorString,
-              embeddingsAdapter.getModel(),
-              embeddingsAdapter.getDimension()
-            );
-          });
+          const EMBEDDING_INSERT_BATCH = 2;
+          console.log(`[RAG UPLOAD] Saving ${embeddings.length} embeddings to DB (batch size: ${EMBEDDING_INSERT_BATCH})`);
+          
+          for (let i = 0; i < chunkRecords.length; i += EMBEDDING_INSERT_BATCH) {
+            const batch = chunkRecords.slice(i, i + EMBEDDING_INSERT_BATCH);
+            for (let j = 0; j < batch.length; j++) {
+              const chunk = batch[j];
+              const embedding = embeddings[i + j];
+              const vectorString = `[${embedding.join(',')}]`;
+              await prisma.$executeRawUnsafe(
+                `INSERT INTO rag_embeddings (id, "chunkId", embedding, model, dimension, "createdAt")
+                 VALUES ($1, $2, $3::vector, $4, $5, NOW())`,
+                `emb_${chunk.id}`,
+                chunk.id,
+                vectorString,
+                embeddingsAdapter.getModel(),
+                embeddingsAdapter.getDimension()
+              );
 
-          await Promise.all(embeddingInserts);
+              const savedIndex = i + j + 1;
+              if (savedIndex % 5 === 0 || savedIndex === chunkRecords.length) {
+                console.log(`[RAG UPLOAD] Embedding ${savedIndex}/${chunkRecords.length} saved`);
+              }
+            }
+          }
+          console.log('[RAG UPLOAD] All embeddings saved successfully');
           embeddingsCreated = embeddings.length;
         }
       }

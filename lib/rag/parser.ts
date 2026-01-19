@@ -5,7 +5,7 @@ import { spawn } from 'child_process';
 import { Readable } from 'stream';
 
 export interface ParsedDocument {
-  text: string;
+  text: string | Readable;
   metadata?: {
     pages?: number;
     [key: string]: any;
@@ -60,7 +60,7 @@ async function parsePDF(buffer: Buffer): Promise<ParsedDocument> {
     child.on('error', (err) => textStream.emit('error', err));
 
     return {
-      text: textStream as any,
+      text: textStream,
       metadata: { streamed: true },
     };
   } catch (error) {
@@ -83,6 +83,6 @@ async function parseDOC(buffer: Buffer): Promise<ParsedDocument> {
 }
 
 async function parseTXT(buffer: Buffer): Promise<ParsedDocument> {
-  const text = buffer.toString('utf-8').trim();
+  const text = buffer.toString('utf-8');
   return { text, metadata: {} };
 }

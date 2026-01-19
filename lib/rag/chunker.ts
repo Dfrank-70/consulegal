@@ -68,8 +68,12 @@ function chunkTextFromString(
       metadata,
     });
 
-    // Move start position with overlap
-    startChar += chunkContent.length - overlap;
+    if (endChar >= cleanedText.length) {
+      break;
+    }
+
+    const advance = chunkContent.length - overlap;
+    startChar += Math.max(advance, 1);
     chunkIndex++;
 
     // Prevent infinite loop
