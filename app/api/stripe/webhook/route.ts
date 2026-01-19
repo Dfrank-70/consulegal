@@ -1,7 +1,7 @@
 import Stripe from 'stripe';
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { stripe } from '@/lib/stripe';
+import { stripe, getWebhookSecret } from '@/lib/stripe';
 
 /**
  * Manages subscription data in the database in a transactional manner.
@@ -66,24 +66,61 @@ async function manageSubscription(subscription: Stripe.Subscription, userId: str
 export async function POST(req: NextRequest) {
   console.log('🔔 Webhook received');
   const body = await req.text();
-  const signature = req.headers.get('Stripe-Signature') as string;
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET_TEST || process.env.STRIPE_WEBHOOK_SECRET;
-
-  if (!webhookSecret) {
-    console.error('❌ Stripe webhook secret is not configured. Denying request.');
-    return new NextResponse('Webhook secret not configured', { status: 500 });
+  const signature = req.headers.get('Stripe-Signature');
+  
+  // Validazione signature header
+  if (!signature) {
+    console.error('❌ Missing Stripe-Signature header');
+    return new NextResponse('Missing Stripe-Signature', { status: 400 });
   }
   
-  console.log('✅ Webhook secret is configured');
+  let webhookSecret: string;
+  try {
+    webhookSecret = getWebhookSecret();
+  } catch (error: any) {
+    console.error('❌ Webhook secret not configured:', error.message);
+    return new NextResponse('Webhook secret not configured', { status: 500 });
+  }
 
   let event: Stripe.Event;
   try {
-    console.log('🔄 Attempting to construct event from webhook payload');
     event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-    console.log('✅ Event constructed successfully');
+    console.log(`✅ Webhook event verified: ${event.type} (${event.id})`);
   } catch (err: any) {
     console.error(`❌ Webhook signature verification failed: ${err.message}`);
     return new NextResponse(`Webhook Error: ${err.message}`, { status: 400 });
+  }
+
+  // IDEMPOTENCY: Create event record FIRST (concurrency-safe)
+  try {
+    await prisma.stripeEvent.create({
+      data: {
+        eventId: event.id,
+        eventType: event.type,
+        processed: false, // Mark as in-progress
+      }
+    });
+    console.log(`✅ Event ${event.id} registered for processing`);
+  } catch (error: any) {
+    // Unique constraint violation (P2002) = event already exists
+    if (error.code === 'P2002') {
+      // Check if event was fully processed or still in progress
+      const existingEvent = await prisma.stripeEvent.findUnique({
+        where: { eventId: event.id }
+      });
+      
+      if (existingEvent?.processed) {
+        console.log(`⏭️  Event ${event.id} already processed, skipping`);
+        return new NextResponse(null, { status: 200 });
+      } else {
+        // Event processing in progress or failed - let Stripe retry
+        console.log(`⏳ Event ${event.id} processing in progress or failed, returning 500 for retry`);
+        return new NextResponse('Event processing in progress', { status: 500 });
+      }
+    }
+    // Other DB errors - return 500 to trigger Stripe retry
+    console.error(`❌ DB error creating event record: ${error.message}`);
+    return new NextResponse('Database error', { status: 500 });
   }
 
   console.log('✅ Stripe Webhook Received:', event.type);
@@ -141,7 +178,6 @@ export async function POST(req: NextRequest) {
           console.log(`🔍 Processing payment for subscription ${(invoice as any).subscription}`);
           const subscription = await stripe.subscriptions.retrieve((invoice as any).subscription as string);
           
-          // Find the user via the stored customerId
           const user = await prisma.user.findFirst({
             where: { stripeCustomerId: customerId },
             select: { id: true },
@@ -157,11 +193,54 @@ export async function POST(req: NextRequest) {
         break;
       }
 
+      case 'invoice.payment_failed': {
+        console.log('❌ Invoice payment failed event received');
+        const invoice = event.data.object as Stripe.Invoice;
+        const customerId = invoice.customer as string;
+        
+        const user = await prisma.user.findFirst({
+          where: { stripeCustomerId: customerId },
+          select: { id: true },
+        });
+
+        if (user) {
+          // Retrieve subscription to get actual status from Stripe
+          if ((invoice as any).subscription) {
+            const subscription = await stripe.subscriptions.retrieve((invoice as any).subscription as string);
+            console.log(`⚠️  Payment failed for user ${user.id}, updating subscription status to ${subscription.status}`);
+            await manageSubscription(subscription, user.id);
+          } else {
+            // No subscription linked, just update to past_due
+            console.log(`⚠️  Payment failed for user ${user.id}, no subscription linked`);
+            await prisma.subscription.updateMany({
+              where: { userId: user.id },
+              data: { status: 'past_due' }
+            });
+          }
+        } else {
+          console.error(`❌ User not found for customer ID: ${customerId}. Cannot process payment failure.`);
+        }
+        break;
+      }
+
       default:
         console.log(`🤷‍♀️ Unhandled event type: ${event.type}`);
     }
+
+    // Mark event as fully processed
+    try {
+      await prisma.stripeEvent.update({
+        where: { eventId: event.id },
+        data: { processed: true }
+      });
+      console.log(`✅ Event ${event.id} processed and marked complete`);
+    } catch (error: any) {
+      console.error(`⚠️  Error updating event status: ${error.message}`);
+      // Don't fail webhook - processing was successful
+    }
   } catch (error: any) {
-    console.error('Error processing webhook event:', error);
+    console.error('❌ Error processing webhook event:', error);
+    // Event record exists with processed=false, Stripe will retry
     return new NextResponse('Webhook handler failed', { status: 500 });
   }
 

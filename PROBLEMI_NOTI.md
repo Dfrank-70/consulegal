@@ -1,5 +1,10 @@
 # Problemi Noti e Soluzioni
 
+**Data:** 19 Gennaio 2026  
+**Contesto:** Issues ricorrenti MVP subscription sync
+
+---
+
 ## ⚠️ PROBLEMA RICORRENTE: Abbonamenti Stripe non sincronizzati automaticamente
 
 ### 🔴 Sintomo

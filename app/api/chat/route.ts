@@ -7,6 +7,9 @@ import { OpenAI } from "openai";
 import mammoth from "mammoth";
 import { executeWorkflow, getWorkflowFinalOutput } from "@/lib/workflow-executor";
 import { stripe } from "@/lib/stripe";
+import { checkSubscriptionEntitlement } from "@/lib/entitlement";
+import { checkRateLimit, getClientIP } from "@/lib/rate-limit";
+import { estimateChatInputTokens, checkTokenLimit } from "@/lib/token-estimator";
 
 // Configurazione rimossa - usiamo le API native di Next.js
 
@@ -152,23 +155,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 401 });
     }
 
-    const formData = await req.formData();
-    const message = formData.get("message") as string || "";
-    let conversationId = formData.get("conversationId") as string || null;
-    const file = formData.get("file") as File | null;
-
-    if (!message && !file) {
-      return NextResponse.json(
-        { error: "È richiesto un messaggio o un file." },
-        { status: 400 }
-      );
-    }
-    
     const userId = session.user.id as string;
 
-    // --- INIZIO BLOCCO DI VALIDAZIONE UTENTE E ABBONAMENTO ---
+    // RATE LIMITING: Check requests per minute
+    const rateLimitIdentifier = userId || getClientIP(req.headers);
+    const rateLimit = checkRateLimit(rateLimitIdentifier);
+    
+    if (!rateLimit.allowed) {
+      console.log(`🚫 Rate limit exceeded for ${userId || 'IP:' + rateLimitIdentifier}`);
+      return NextResponse.json(
+        { 
+          error: 'rate_limited', 
+          retry_after_seconds: rateLimit.retryAfterSeconds 
+        },
+        { 
+          status: 429,
+          headers: {
+            'Retry-After': String(rateLimit.retryAfterSeconds || 60)
+          }
+        }
+      );
+    }
 
-    // 1. Recupera utente, abbonamento e workflow associato
+    // --- FETCH USER + SUBSCRIPTION (before expensive operations) ---
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -182,7 +191,6 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // 2. Controlli di base sull'utente
     if (!user) {
       return NextResponse.json({ error: "Utente non trovato" }, { status: 404 });
     }
@@ -193,15 +201,87 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Blocco di validazione dell'abbonamento e del limite token
-    let subscription = user.subscription;
-    let isSubscribed = 
-        subscription &&
-        subscription.currentPeriodEnd &&
-        subscription.currentPeriodEnd.getTime() > Date.now();
+    // ENTITLEMENT CHECK: Block if no active subscription
+    const entitlement = checkSubscriptionEntitlement(user.subscription);
+    
+    if (!entitlement.entitled) {
+      console.log(`🚫 Access denied for user ${userId}: ${entitlement.reason}`);
+      return NextResponse.json(
+        { 
+          error: 'subscription_inactive', 
+          reason: entitlement.reason,
+          action: 'subscribe'
+        },
+        { status: 402 }
+      );
+    }
 
-    // Se non è sottoscritto nel DB, controlla Stripe e sincronizza automaticamente
-    if (!isSubscribed && user.stripeCustomerId) {
+    // --- PARSE FORM DATA (after entitlement check) ---
+    const formData = await req.formData();
+    const message = formData.get("message") as string || "";
+    let conversationId = formData.get("conversationId") as string || null;
+    const file = formData.get("file") as File | null;
+
+    if (!message && !file) {
+      return NextResponse.json(
+        { error: "È richiesto un messaggio o un file." },
+        { status: 400 }
+      );
+    }
+
+    // FILE SIZE CHECK: Limit upload size
+    if (file) {
+      const maxFileBytes = parseInt(process.env.MAX_FILE_BYTES || '10485760'); // 10MB default
+      if (file.size > maxFileBytes) {
+        console.log(`🚫 File too large for user ${userId}: ${file.size} bytes (max: ${maxFileBytes})`);
+        return NextResponse.json(
+          { 
+            error: 'file_too_large', 
+            max_file_bytes: maxFileBytes,
+            file_bytes: file.size
+          },
+          { status: 413 }
+        );
+      }
+    }
+    
+    // Extract file content for token estimation
+    let fileContentPreview = "";
+    if (file) {
+      try {
+        fileContentPreview = await extractTextFromFile(file);
+      } catch (error) {
+        console.warn(`File extraction failed for token estimate: ${error}`);
+      }
+    }
+
+    // TOKEN LIMIT: Check input size before LLM call
+    const estimatedInputTokens = estimateChatInputTokens(
+      message,
+      "You are a helpful legal assistant.",
+      fileContentPreview
+    );
+    
+    const tokenLimitCheck = checkTokenLimit(estimatedInputTokens);
+    
+    if (!tokenLimitCheck.withinLimit) {
+      console.log(`🚫 Input too large for user ${userId}: ${estimatedInputTokens} tokens (max: ${tokenLimitCheck.maxTokens})`);
+      return NextResponse.json(
+        { 
+          error: 'input_too_large', 
+          max_input_tokens: tokenLimitCheck.maxTokens,
+          estimated_tokens: estimatedInputTokens
+        },
+        { status: 413 }
+      );
+    }
+
+    // Subscription attiva, procedi con validazione token limit
+    let subscription = user.subscription;
+    let isSubscribed = true; // Entitlement già verificato sopra
+
+    // Fallback: Se subscription mancante ma user ha stripeCustomerId, sincronizza
+    if (!subscription && user.stripeCustomerId) {
       console.log(`🔄 Utente ${user.email} non ha abbonamento attivo nel DB, controllo Stripe...`);
       try {
         const stripeSubscriptions = await stripe.subscriptions.list({

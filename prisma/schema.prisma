@@ -260,3 +260,15 @@ model RagEmbedding {
 
   @@map("rag_embeddings")
 }
+
+// Stripe Webhook Idempotency
+model StripeEvent {
+  id         String   @id @default(cuid())
+  eventId    String   @unique // Stripe event.id
+  eventType  String   // Stripe event.type
+  processed  Boolean  @default(true)
+  receivedAt DateTime @default(now())
+
+  @@index([eventType, receivedAt])
+  @@map("stripe_events")
+}

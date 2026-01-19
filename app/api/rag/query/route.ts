@@ -4,11 +4,43 @@ import { NextRequest, NextResponse } from 'next/server';
 import { hybridRetrieval } from '@/lib/rag/retrieval';
 import { QueryRequest, QueryResponse } from '@/lib/rag/types';
 import prisma from '@/lib/prisma';
+import { auth } from '@/auth';
+import { checkSubscriptionEntitlement } from '@/lib/entitlement';
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
   try {
+    // Authentication check
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Entitlement check
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      include: { subscription: true }
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    const entitlement = checkSubscriptionEntitlement(user.subscription);
+    
+    if (!entitlement.entitled) {
+      console.log(`🚫 RAG query denied for user ${session.user.id}: ${entitlement.reason}`);
+      return NextResponse.json(
+        { 
+          error: 'subscription_inactive', 
+          reason: entitlement.reason,
+          action: 'subscribe'
+        },
+        { status: 402 }
+      );
+    }
+
     const body: QueryRequest = await request.json();
     const { nodeId, query, topK = 20, returnK = 5, hybridAlpha = 0.5 } = body;
 
