@@ -29,24 +29,37 @@ export function DashboardClientLayout({
   const searchParams = useSearchParams();
   const router = useRouter();
   
-  // Handle new subscription parameter
+  // Handle new subscription parameter - sync subscription automatically
   useEffect(() => {
     if (!searchParams) return;
     
     const newSubscription = searchParams.get('new-subscription');
     if (newSubscription === 'true') {
-      // Remove the query parameter and refresh the page to get the latest subscription data
-      const url = new URL(window.location.href);
-      url.searchParams.delete('new-subscription');
+      // Sincronizza immediatamente l'abbonamento
+      const syncSubscription = async () => {
+        try {
+          const response = await fetch('/api/subscription/sync', {
+            method: 'POST',
+          });
+          
+          if (response.ok) {
+            console.log('✅ Subscription synced successfully');
+          } else {
+            console.error('❌ Failed to sync subscription:', await response.text());
+          }
+        } catch (error) {
+          console.error('❌ Error syncing subscription:', error);
+        } finally {
+          // Rimuovi il parametro e ricarica per mostrare il piano attivo
+          const url = new URL(window.location.href);
+          url.searchParams.delete('new-subscription');
+          window.location.href = url.toString();
+        }
+      };
       
-      // Wait a moment to allow webhook processing to complete
-      const timer = setTimeout(() => {
-        window.location.href = url.toString();
-      }, 5000);
-      
-      return () => clearTimeout(timer);
+      syncSubscription();
     }
-  }, [searchParams, router]);
+  }, [searchParams]);
 
   // Fix viewport height su mobile quando barra browser appare/scompare
   useEffect(() => {
