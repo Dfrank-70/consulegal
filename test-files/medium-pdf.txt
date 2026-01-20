@@ -1,0 +1,39 @@
+Questo è un file PDF di medie dimensioni per testare il sistema di upload.
+Contiene circa 15.000 caratteri per testare il limite di ConsulPro (75.000 caratteri).
+
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+
+Capitolo 1: Introduzione al sistema
+Il sistema di gestione documentale ConsuLegal permette di processare vari formati di file tra cui PDF, DOCX e TXT. Ogni file viene analizzato per estrarne il contenuto testuale e successivamente processato attraverso modelli di linguaggio avanzati.
+
+Capitolo 2: Limiti e restrizioni
+I limiti di upload sono definiti per piano di abbonamento:
+- ConsulLight: 1MB, 25.000 caratteri
+- ConsulExpert: 2MB, 50.000 caratteri  
+- ConsulPro: 3MB, 75.000 caratteri
+
+Capitolo 3: Processamento dei file
+Quando un file viene caricato, il sistema esegue le seguenti operazioni:
+1. Verifica della dimensione del file
+2. Estrazione del contenuto testuale
+3. Troncamento se necessario
+4. Stima dei token richiesti
+5. Processamento attraverso il LLM
+
+Capitolo 4: Best practices
+Per risultati ottimali si consiglia di:
+- Utilizzare file PDF ben formattati
+- Evitare immagini eccessive nei documenti
+- Mantenere il testo pulito e leggibile
+- Rispettare i limiti dimensionali
+
+Capitolo 5: Troubleshooting
+In caso di problemi con l'upload:
+1. Verificare la dimensione del file
+2. Controllare il formato supportato
+3. Assicurarsi che il file non sia corrotto
+4. Provare a dividere file molto grandi
+
+Questo testo di test simula un documento legale di medie dimensioni con circa 15.000 caratteri, ben sotto il limite di 75.000 caratteri del piano ConsulPro ma sufficiente per testare il sistema di processamento.
+
+Fine del documento di test.

@@ -16,6 +16,15 @@ export function MessageInput({ onSend, isLoading }: MessageInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Funzione per formattare le dimensioni del file
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
   const handleSend = () => {
     if (message.trim() || file) {
       onSend(message, file || undefined);
@@ -37,23 +46,20 @@ export function MessageInput({ onSend, isLoading }: MessageInputProps) {
       const allowedTypes = [
         'application/pdf',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-        'application/msword' // .doc
+        'application/msword', // .doc
+        'text/plain' // .txt
       ];
       
       if (allowedTypes.includes(selectedFile.type)) {
         setFile(selectedFile);
       } else {
-        alert('Tipo di file non supportato. Sono accettati solo file PDF, DOC e DOCX.');
+        alert('Tipo di file non supportato. Sono accettati solo file PDF, DOC, DOCX e TXT.');
         // Reset dell'input
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
       }
     }
-  };
-
-  const handleAttachClick = () => {
-    fileInputRef.current?.click();
   };
 
   const handleRemoveFile = () => {
@@ -88,6 +94,15 @@ export function MessageInput({ onSend, isLoading }: MessageInputProps) {
       };
     }
     
+    if (fileType === 'text/plain' || fileName.endsWith('.txt')) {
+      return {
+        icon: FileText,
+        color: 'text-green-600',
+        bgColor: 'bg-green-50',
+        borderColor: 'border-green-200'
+      };
+    }
+    
     // Fallback per altri tipi di file
     return {
       icon: File,
@@ -110,12 +125,13 @@ export function MessageInput({ onSend, isLoading }: MessageInputProps) {
                 <IconComponent className="h-5 w-5" />
               </div>
               <div className="flex flex-col">
-                <span className="truncate font-medium text-gray-900">{file.name}</span>
+                <span className="truncate font-medium text-gray-900">{file.name} ({formatFileSize(file.size)})</span>
                 <span className="text-xs text-gray-500">
                   {file.type === 'application/pdf' && 'Documento PDF'}
                   {(file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
                     file.type === 'application/msword') && 'Documento Word'}
-                  {(!file.type.includes('pdf') && !file.type.includes('word') && !file.type.includes('document')) && 'Documento'}
+                  {file.type === 'text/plain' && 'Documento di testo'}
+                  {(!file.type.includes('pdf') && !file.type.includes('word') && !file.type.includes('document') && !file.type.includes('text')) && 'Documento'}
                 </span>
               </div>
             </div>
@@ -125,35 +141,38 @@ export function MessageInput({ onSend, isLoading }: MessageInputProps) {
           </div>
         );
       })()}
-      <div className="flex items-end">
+      <div className="relative">
         <Textarea
           ref={textareaRef}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Scrivi il tuo messaggio qui..."
-          className="flex-1 resize-none border-0 bg-transparent pr-24 sm:pr-20 shadow-none focus-visible:ring-0"
+          className="w-full resize-none border-0 bg-transparent pr-28 sm:pr-24 shadow-none focus-visible:ring-0"
           rows={1}
           disabled={isLoading}
         />
-        <div className="absolute right-2 bottom-2 flex items-center gap-1 sm:gap-2 z-10">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            className="hidden"
-            accept=".pdf,.doc,.docx"
-          />
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-10 w-10 sm:h-8 sm:w-8 bg-background hover:bg-accent"
-            onClick={handleAttachClick}
-            disabled={isLoading}
-            title="Allega un file"
-          >
-            <Paperclip className="h-5 w-5 sm:h-4 sm:w-4" />
-          </Button>
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 sm:gap-2">
+          <div className="relative h-10 w-10 sm:h-8 sm:w-8">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-full w-full bg-background hover:bg-accent"
+              disabled={isLoading}
+            >
+              <Paperclip className="h-5 w-5 sm:h-4 sm:w-4" />
+            </Button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-[0.01]"
+              accept=".pdf,.doc,.docx,.txt"
+              disabled={isLoading}
+              title="Allega un file"
+            />
+          </div>
           <Button
             type="button"
             size="icon"

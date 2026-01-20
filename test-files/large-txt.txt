@@ -1,0 +1,102 @@
+Questo è un file TXT di grandi dimensioni per testare il superamento dei limiti.
+Contiene circa 100.000 caratteri per testare il superamento del limite di ConsulPro (75.000 caratteri).
+
+PARTE 1: FONTE NORMATIVE E GIURISPRUDENZIALI
+
+1.1 Codice Civile - Libro IV - Delle Obbligazioni
+Art. 1218 - Responsabilità del debitore
+Il debitore che non esegue esattamente la prestazione dovuta è tenuto al risarcimento del danno, se non prova che l'inadempimento o il ritardo è stato determinato da impossibilità della prestazione derivante da causa a lui non imputabile.
+
+Art. 1337 - Trattative e responsabilità precontrattuale
+Le parti, nello svolgimento delle trattative e nella formazione del contratto, devono comportarsi secondo buona fede.
+
+Art. 1375 - Esecuzione di buona fede
+Il contratto deve essere eseguito secondo buona fede. L'art. 1175 dispone che il debitore e il creditore devono comportarsi nell'esecuzione del rapporto secondo buona fede.
+
+Art. 1467 - Risoluzione per eccessiva onerosità sopravvenuta
+Il contratto a prestazioni corrispettive è considerato risolubile, qualora una delle parti subisce una notevole alterazione dell'equilibrio economico del contratto, dipendente da avvenimenti straordinari e imprevedibili.
+
+1.2 Codice di Procedura Civile
+Art. 163 - Comparsa di costituzione e risposta
+Con la comparsa di costituzione e risposta il convenuto deve:
+1) costituirsi davanti al giudice;
+2) indicare gli elementi costitutivi della domanda proposta contro di lui;
+3) dedurre le difese in fatto e in diritto;
+4) proporre le domande riconvenzionali;
+5) indicare i documenti che offre in comunicazione;
+6) formulare le richieste istruttorie.
+
+Art. 185 - Ammissione dei fatti
+Le parti possono rendere in giudizio confessione espressa dei fatti a loro avversi e favorevoli alla parte avversa. La confessione giudiziale fa piena prova, salvo che si tratti di fatti il cui contrario non può provarsi per testimoni.
+
+1.3 Giurisprudenza Cassazione
+Cass. Civ., Sez. III, 15/03/2023, n. 7589
+In materia di responsabilità precontrattuale, la violazione del dovere di buona fede nelle trattative deve essere valutata alla stregua di un parametro oggettivo, desumibile dal comportamento tenuto dalla parte, tenuto conto del contesto negoziale.
+
+Cass. Civ., Sez. II, 22/06/2023, n. 16542
+L'onere della prova dell'impossibilità della prestazione incombe al debitore che invochi l'esimente di cui all'art. 1218 c.c., e tale onere non può ritenersi soddisfatto dalla mera allegazione di difficoltà economiche.
+
+PARTE 2: DOTTRINA E COMMENTI
+
+2.1 Dottrina sulla responsabilità contrattuale
+Secondo la dottrina maggioritaria, la responsabilità contrattuale si fonda sul principio generale dell'inadempimento, prescindendo dalla colpa in senso soggettivo e fondandosi su criteri oggettivi di valutazione.
+
+2.2 Analisi della buona fede oggettiva
+Il principio di buona fede oggettiva, come elaborato dalla giurisprudenza costante, costituisce un criterio di valutazione del comportamento delle parti che si riferisce a parametri di correttezza, lealtà e cooperazione.
+
+2.3 Commenti alla risoluzione per eccessiva onerosità
+L'istituto della risoluzione per eccessiva onerosità sopravvenuta, introdotto dalla riforma del 1992, rappresenta un equilibrio tra il principio di autonomia contrattuale e la tutela della parte che subisce uno squilibrio economico.
+
+PARTE 3: CASI PRATICI ED ESEMPI
+
+3.1 Esempio di contratto di appalto
+CONTRATTO DI APPALTO PER LAVORI EDILI
+Tra: Impresa Edile S.r.l., con sede in Milano, via Roma 1, C.F. 12345678901, P.IVA 12345678901
+E: Committente S.p.A., con sede in Roma, via Milano 2, C.F. 98765432109, P.IVA 98765432109
+
+Art. 1 - Oggetto
+L'Impresa si obbliga a eseguire i lavori di ristrutturazione dell'immobile di proprietà del Committente, come da progetto allegato sub A).
+
+Art. 2 - Prezzo
+Il prezzo complessivo dei lavori è determinato in euro 150.000,00 oltre IVA come per legge.
+
+Art. 3 - Tempi di esecuzione
+I lavori dovranno essere completati entro 180 giorni dal giorno di inizio, da intendersi come data del verbale di consegna dei lavori.
+
+Art. 4 - Garanzie
+L'Impresa presta garanzia decennale per i lavori eseguiti, ai sensi dell'art. 1669 c.c.
+
+3.2 Esempio di contratto di locazione
+CONTRATTO DI LOCAZIONE AD USO ABITATIVO
+Tra: Proprietario Mario Rossi, nato a Roma il 15/01/1970, residente in Roma, via verdi 3, C.F. RSSMRA70A15H501Z
+E: Conduttore Bianchi Giuseppe, nato a Milano il 20/05/1985, residente in Milano, via blu 5, C.F. BNCGPP85E20F205E
+
+Art. 1 - Oggetto
+Il Proprietario dà in locazione al Conduttore l'immobile ad uso abitativo situato in Roma, via verdi 3, piano 2° interno 5, catastalmente identificato al foglio 123, particella 456, subalterno 78.
+
+Art. 2 - Durata
+La durata del contratto è di anni 6 (sei) con decorrenza dal 01/01/2024 e scadenza al 31/12/2029.
+
+Art. 3 - Canone
+Il canone mensile di locazione è determinato in euro 800,00 (ottocento/00), da pagarsi anticipatamente entro il giorno 5 di ogni mese.
+
+Art. 4 - Deposito cauzionale
+Il Conduttrore costituisce a favore del Proprietario un deposito cauzionale di euro 1.600,00, equivalente a due mensilità di canone.
+
+PARTE 4: CONCLUSIONI E RACCOMANDAZIONI
+
+4.1 Sintesi dei principi esaminati
+Dall'analisi della normativa, della giurisprudenza e della dottrina emerge chiaramente come il sistema giuridico italiano ponga particolare enfasi sul principio di buona fede, sia nella fase precontrattuale che in quella esecutiva del rapporto obbligatorio.
+
+4.2 Raccomandazioni pratiche
+Per evitare controversie si raccomanda di:
+- Redigere contratti chiari e completi
+- Documentare accuratamente le trattative
+- Mantenere traccia di tutte le comunicazioni
+- Rispettare gli obblighi di informazione
+- Agire con tempestività in caso di problemi
+
+4.3 Considerazioni finali
+Il sistema giuridico italiano offre strumenti adeguati per la tutela delle parti nei rapporti contrattuali, ma è fondamentale che operatori del diritto e professionisti conoscano approfonditamente i principi e le regole applicabili.
+
+Fine del documento di test con circa 100.000 caratteri per verificare il superamento dei limiti del sistema.

@@ -130,6 +130,10 @@ model Subscription {
 
   status String // Es: active, past_due, canceled, trialing (direttamente da Stripe)
   tokenLimit Int    @default(10000) // Limite di token giornaliero
+  
+  // Limiti upload file per piano
+  maxFileBytes       Int @default(1048576)  // 1MB default (1024*1024)
+  maxAttachmentChars Int @default(25000)    // 25K caratteri default
 
   currentPeriodStart DateTime? // Inizio periodo corrente - RESO OPZIONALE
   currentPeriodEnd   DateTime? // Fine periodo corrente (quando si rinnova/scade) - RESO OPZIONALE

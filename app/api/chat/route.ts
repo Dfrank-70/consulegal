@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "../../../auth";
 import { OpenAI } from "openai";
-// Rimosso formidable - usiamo le API native di Next.js
-// pdf-parse viene importato dinamicamente solo quando necessario
 import mammoth from "mammoth";
 import { executeWorkflow, getWorkflowFinalOutput } from "@/lib/workflow-executor";
 import { stripe } from "@/lib/stripe";
@@ -38,113 +36,105 @@ function cleanExtractedText(text: string): string {
     .trim();
 }
 
-async function extractTextFromFile(file: File): Promise<string> {
+interface FileExtractionResult {
+  text: string;
+  metadata: {
+    filename: string;
+    mimeType: string;
+    sizeBytes: number;
+    extractedChars: number;
+    uploadedAt: string;
+  };
+}
+
+async function extractTextFromFile(file: File): Promise<FileExtractionResult> {
   const fileName = file.name || 'file sconosciuto';
   const fileType = file.type;
+  const fileSize = file.size;
 
-  console.log(`Elaborazione file: ${fileName}, tipo MIME: ${fileType}`);
+  console.log(`[FILE EXTRACT] Processing: ${fileName}, MIME: ${fileType}, Size: ${fileSize} bytes`);
+
+  const fileBuffer = Buffer.from(await file.arrayBuffer());
+  let extractedText = "";
 
   try {
-    const fileBuffer = Buffer.from(await file.arrayBuffer());
-    let extractedText = "";
+    if (fileType === "application/pdf" || fileName.toLowerCase().endsWith('.pdf')) {
+      console.log("[PDF] Parsing with pdf-parse...");
+      // pdf-parse is a CommonJS module, need to access default export
+      const pdfParseModule = await import("pdf-parse");
+      const pdfParse =
+        (pdfParseModule as any).pdf ||
+        (pdfParseModule as any).default ||
+        (pdfParseModule as any).PDFParse ||
+        (pdfParseModule as any);
 
-    if (fileType === "application/pdf") {
-      console.log("Elaborazione PDF in corso con pdf2json...");
-      try {
-        const PDFParser = await import("pdf2json");
-        
-        extractedText = await new Promise<string>((resolve, reject) => {
-          const pdfParser = new PDFParser.default();
-          
-          pdfParser.on("pdfParser_dataError", (errData: any) => {
-            console.error("Errore PDF2JSON:", errData);
-            resolve(`[ERRORE: Impossibile elaborare il PDF "${fileName}". Il file potrebbe essere corrotto o protetto.]`);
-          });
-          
-          pdfParser.on("pdfParser_dataReady", (pdfData: any) => {
-            try {
-              let fullText = "";
-              
-              if (pdfData.Pages && pdfData.Pages.length > 0) {
-                pdfData.Pages.forEach((page: any, pageIndex: number) => {
-                  if (page.Texts && page.Texts.length > 0) {
-                    page.Texts.forEach((textItem: any) => {
-                      if (textItem.R && textItem.R.length > 0) {
-                        textItem.R.forEach((run: any) => {
-                          if (run.T) {
-                            fullText += decodeURIComponent(run.T) + " ";
-                          }
-                        });
-                      }
-                    });
-                    fullText += "\n";
-                  }
-                });
-              }
-              
-              if (fullText.trim()) {
-                resolve(fullText.trim());
-              } else {
-                resolve(`[PDF "${fileName}" elaborato ma non contiene testo estraibile. Potrebbe essere un'immagine scansionata.]`);
-              }
-            } catch (parseError) {
-              console.error("Errore parsing PDF:", parseError);
-              resolve(`[ERRORE: Impossibile estrarre il testo dal PDF "${fileName}".]`);
-            }
-          });
-          
-          // Avvia il parsing
-          pdfParser.parseBuffer(fileBuffer);
-        });
-      } catch (pdfError) {
-        console.error("Errore caricamento pdf2json:", pdfError);
-        extractedText = `[ERRORE: Impossibile caricare il parser PDF. Prova a convertire in DOCX.]`;
+      if (typeof pdfParse !== 'function') {
+        throw new Error('PDF_PARSER_INVALID_EXPORT');
+      }
+
+      const pdfData = await pdfParse(fileBuffer);
+      extractedText = pdfData.text;
+      
+      if (!extractedText || extractedText.trim().length === 0) {
+        throw new Error(`PDF "${fileName}" non contiene testo estraibile. Potrebbe essere un'immagine scansionata.`);
       }
       
-    } else if (fileType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
-      console.log("Elaborazione DOCX in corso...");
+    } else if (fileType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || fileName.toLowerCase().endsWith('.docx')) {
+      console.log("[DOCX] Parsing with mammoth...");
       const { value } = await mammoth.extractRawText({ buffer: fileBuffer });
       extractedText = value;
       
-    } else if (fileType === "application/msword") {
-      console.log("Elaborazione DOC in corso...");
+    } else if (fileType === "application/msword" || fileName.toLowerCase().endsWith('.doc')) {
+      console.log("[DOC] Parsing with word-extractor...");
+      const WordExtractor = (await import("word-extractor")).default;
+      const extractor = new WordExtractor();
+      
+      const fs = await import("fs");
+      const path = await import("path");
+      const os = await import("os");
+      
+      const tempFilePath = path.join(os.tmpdir(), `temp_${Date.now()}.doc`);
+      fs.writeFileSync(tempFilePath, fileBuffer);
+      
       try {
-        const WordExtractor = await import("word-extractor");
-        const extractor = new WordExtractor.default();
-        
-        // word-extractor richiede un file path, quindi salviamo temporaneamente il buffer
-        const fs = await import("fs");
-        const path = await import("path");
-        const os = await import("os");
-        
-        const tempFilePath = path.join(os.tmpdir(), `temp_${Date.now()}.doc`);
-        fs.writeFileSync(tempFilePath, fileBuffer);
-        
         const extracted = await extractor.extract(tempFilePath);
         extractedText = extracted.getBody();
-        
-        // Pulisci il file temporaneo
+      } finally {
         fs.unlinkSync(tempFilePath);
-        
-      } catch (docError) {
-        console.error("Errore elaborazione DOC:", docError);
-        return `[ERRORE DOC: Impossibile elaborare il file "${fileName}". Prova a salvarlo come DOCX.]`;
       }
       
+    } else if (fileType === "text/plain" || fileName.toLowerCase().endsWith('.txt')) {
+      console.log("[TXT] Parsing as UTF-8 text...");
+      extractedText = fileBuffer.toString('utf-8');
+      
     } else {
-      console.log(`Tipo di file non supportato: ${fileType}`);
-      return `\n[ERRORE: Tipo di file "${fileType}" non supportato. Sono accettati solo PDF, DOC e DOCX.]\n`;
+      console.error(`[UNSUPPORTED] MIME: ${fileType}`);
+      throw new Error(`UNSUPPORTED_FILE_TYPE:${fileType}`);
     }
 
-    // Pulisce il testo rimuovendo righe vuote
     const cleanedText = cleanExtractedText(extractedText);
-    console.log(`File elaborato con successo. Testo pulito: ${cleanedText.length} caratteri (originale: ${extractedText.length})`);
+    console.log(`[FILE EXTRACT] Success: ${cleanedText.length} chars (original: ${extractedText.length})`);
     
-    return cleanedText;
+    return {
+      text: cleanedText,
+      metadata: {
+        filename: fileName,
+        mimeType: fileType,
+        sizeBytes: fileSize,
+        extractedChars: cleanedText.length,
+        uploadedAt: new Date().toISOString()
+      }
+    };
     
-  } catch (error) {
-    console.error(`Errore durante l'elaborazione del file ${fileName}:`, error);
-    return `\n[ERRORE: Impossibile elaborare il file "${fileName}". Verifica che il file non sia corrotto.]\n`;
+  } catch (error: any) {
+    console.error(`[FILE EXTRACT] Error processing ${fileName}:`, error);
+    
+    if (error.message?.startsWith('UNSUPPORTED_FILE_TYPE:')) {
+      const mimeType = error.message.split(':')[1];
+      throw { code: 'unsupported_file_type', mimeType, filename: fileName };
+    }
+    
+    throw { code: 'file_parse_failed', filename: fileName, details: error.message };
   }
 }
 
@@ -229,14 +219,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // FILE SIZE CHECK: Limit upload size
+    // FILE SIZE CHECK: Usa limiti dal piano utente
     if (file) {
-      const maxFileBytes = parseInt(process.env.MAX_FILE_BYTES || '10485760'); // 10MB default
+      const maxFileBytes = user.subscription?.maxFileBytes || parseInt(process.env.MAX_FILE_BYTES || '1048576'); // 1MB default
       if (file.size > maxFileBytes) {
         console.log(`🚫 File too large for user ${userId}: ${file.size} bytes (max: ${maxFileBytes})`);
         return NextResponse.json(
           { 
-            error: 'file_too_large', 
+            error: 'file_too_large',
+            message: `File troppo grande (${(file.size / 1024 / 1024).toFixed(1)}MB / max ${(maxFileBytes / 1024 / 1024).toFixed(1)}MB)`,
+            suggestion: 'Per documenti grandi, usa la funzione "Knowledge Base" per analisi approfondita.',
             max_file_bytes: maxFileBytes,
             file_bytes: file.size
           },
@@ -247,11 +239,46 @@ export async function POST(req: NextRequest) {
     
     // Extract file content for token estimation
     let fileContentPreview = "";
+    let fileExtractionResult: FileExtractionResult | null = null;
+    
     if (file) {
       try {
-        fileContentPreview = await extractTextFromFile(file);
-      } catch (error) {
-        console.warn(`File extraction failed for token estimate: ${error}`);
+        fileExtractionResult = await extractTextFromFile(file);
+        const attachmentMaxChars = user.subscription?.maxAttachmentChars || parseInt(process.env.ATTACHMENT_MAX_CHARS || '25000'); // 25K default
+        fileContentPreview =
+          fileExtractionResult.text.length > attachmentMaxChars
+            ? fileExtractionResult.text.substring(0, attachmentMaxChars) + '\n\n[...contenuto troncato...]'
+            : fileExtractionResult.text;
+      } catch (error: any) {
+        console.error(`[FILE EXTRACT] Failed:`, error);
+        
+        if (error.code === 'unsupported_file_type') {
+          return NextResponse.json(
+            { 
+              error: 'unsupported_file_type',
+              mimeType: error.mimeType,
+              filename: error.filename,
+              supported_types: ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword', 'text/plain']
+            },
+            { status: 400 }
+          );
+        }
+        
+        if (error.code === 'file_parse_failed') {
+          return NextResponse.json(
+            { 
+              error: 'file_parse_failed',
+              filename: error.filename,
+              details: error.details
+            },
+            { status: 400 }
+          );
+        }
+        
+        return NextResponse.json(
+          { error: 'file_processing_error', details: error.message || 'Unknown error' },
+          { status: 500 }
+        );
       }
     }
 
@@ -305,7 +332,7 @@ export async function POST(req: NextRequest) {
               status: stripeSub.status,
               currentPeriodStart: new Date((stripeSub as any).current_period_start * 1000),
               currentPeriodEnd: new Date((stripeSub as any).current_period_end * 1000),
-              cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
+              cancelAtPeriodEnd: stripeSub.cancel_at_period_end || false,
               tokenLimit: 10000, // Default per piano intermedio
             },
             update: {
@@ -315,15 +342,16 @@ export async function POST(req: NextRequest) {
               status: stripeSub.status,
               currentPeriodStart: new Date((stripeSub as any).current_period_start * 1000),
               currentPeriodEnd: new Date((stripeSub as any).current_period_end * 1000),
-              cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
+              cancelAtPeriodEnd: stripeSub.cancel_at_period_end || false,
               tokenLimit: 10000,
             }
           });
 
-          isSubscribed = 
+          isSubscribed = !!(
             subscription &&
             subscription.currentPeriodEnd &&
-            subscription.currentPeriodEnd.getTime() > Date.now();
+            subscription.currentPeriodEnd.getTime() > Date.now()
+          );
 
           console.log(`✅ Abbonamento sincronizzato per ${user.email}, attivo: ${isSubscribed}`);
         }
@@ -333,29 +361,36 @@ export async function POST(req: NextRequest) {
     }
 
     if (isSubscribed) {
-      const dailyTokenLimit = subscription!.tokenLimit;
-
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      const todayEnd = new Date();
-      todayEnd.setHours(23, 59, 59, 999);
-
-      const usageAggregation = await prisma.tokenUsage.aggregate({
-        _sum: {
-          tokensUsed: true,
-        },
-        where: {
-          userId: userId,
-          date: { gte: todayStart, lte: todayEnd },
-        },
-      });
-      const totalTokensUsedToday = usageAggregation._sum.tokensUsed || 0;
-
-      if (totalTokensUsedToday >= dailyTokenLimit) {
-        return NextResponse.json(
-          { error: `Hai raggiunto il limite giornaliero di ${dailyTokenLimit.toLocaleString('it-IT')} token. Potrai utilizzare nuovamente il servizio domani o contattare l'assistenza per un upgrade.` },
-          { status: 429 } // Too Many Requests
+      if (process.env.DRY_RUN_LLM === 'true') {
+        // no-op
+      } else if (process.env.DISABLE_DAILY_TOKEN_LIMIT !== 'true') {
+        const dailyTokenLimit = parseInt(
+          process.env.DAILY_TOKEN_LIMIT || String(subscription!.tokenLimit || 10000)
         );
+
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        const todayEnd = new Date();
+        todayEnd.setHours(23, 59, 59, 999);
+
+        const usageAggregation = await prisma.tokenUsage.aggregate({
+          _sum: {
+            tokensUsed: true,
+          },
+          where: {
+            userId: userId,
+            date: { gte: todayStart, lte: todayEnd },
+          },
+        });
+        const totalTokensUsedToday = usageAggregation._sum.tokensUsed || 0;
+
+        if (totalTokensUsedToday >= dailyTokenLimit) {
+          return NextResponse.json(
+            { error: `Hai raggiunto il limite giornaliero di ${dailyTokenLimit.toLocaleString('it-IT')} token. Potrai utilizzare nuovamente il servizio domani o contattare l'assistenza per un upgrade.` },
+            { status: 429 } // Too Many Requests
+          );
+        }
       }
     } else {
       // Se l'abbonamento non esiste o non è attivo, blocca la richiesta
@@ -411,35 +446,48 @@ export async function POST(req: NextRequest) {
       });
     }
     
-    let fileContent = "";
     let fullMessage = message;
+    let attachmentContext = "";
+    let attachmentMeta: any = null;
     
-    if (file) {
-      try {
-        fileContent = await extractTextFromFile(file);
-        
-        // Costruisci un prompt strutturato che include il messaggio e il contenuto del file
-        fullMessage = `${message} allego questi file
+    if (file && fileExtractionResult) {
+      const ATTACHMENT_MAX_CHARS = parseInt(process.env.ATTACHMENT_MAX_CHARS || '12000');
+      
+      // Limita preview per evitare overflow token
+      const preview = fileExtractionResult.text.length > ATTACHMENT_MAX_CHARS
+        ? fileExtractionResult.text.substring(0, ATTACHMENT_MAX_CHARS) + '\n\n[...contenuto troncato...]'
+        : fileExtractionResult.text;
+      
+      attachmentContext = preview;
+      attachmentMeta = {
+        ...fileExtractionResult.metadata,
+        previewChars: preview.length,
+        isTruncated: fileExtractionResult.text.length > ATTACHMENT_MAX_CHARS
+      };
+      
+      // Costruisci prompt strutturato distinguendo allegato da fonti RAG
+      fullMessage = `${message}
 
-L'utente ha inviato 1 file allegato:
-- Contenuto del file "${file.name}": ${fileContent}`;
-        
-      } catch (e) {
-        console.error("Error extracting text from file:", e);
-        return NextResponse.json({ error: "Impossibile leggere il file allegato." }, { status: 500 });
-      }
+--- DOCUMENTO ALLEGATO DALL'UTENTE ---
+File: ${file.name}
+Contenuto:
+${attachmentContext}
+--- FINE DOCUMENTO ALLEGATO ---`;
+      
+      console.log(`[ATTACHMENT] Preview: ${preview.length} chars (original: ${fileExtractionResult.text.length}, truncated: ${attachmentMeta.isTruncated})`);
     }
 
     // Count tokens for user message
     const tokensIn = countTokens(fullMessage);
     
-    // Save user message to database
+    // Save user message to database with attachment metadata
     const userMessage = await prisma.message.create({
       data: {
         conversationId: conversation.id,
         role: "USER",
         content: fullMessage,
         tokensIn,
+        attachments: attachmentMeta ? [attachmentMeta] : undefined,
       },
     });
     
@@ -523,14 +571,16 @@ L'utente ha inviato 1 file allegato:
       },
     });
 
-    // Track token usage
-    await prisma.tokenUsage.create({
-      data: {
-        userId,
-        tokensUsed: tokensIn + tokensOut,
-        cost: ((tokensIn / 1000) * 0.0015) + ((tokensOut / 1000) * 0.002), // Stima dei costi
-      },
-    });
+    if (process.env.DRY_RUN_LLM !== 'true') {
+      // Track token usage
+      await prisma.tokenUsage.create({
+        data: {
+          userId,
+          tokensUsed: tokensIn + tokensOut,
+          cost: ((tokensIn / 1000) * 0.0015) + ((tokensOut / 1000) * 0.002), // Stima dei costi
+        },
+      });
+    }
     
     return NextResponse.json({
       content,

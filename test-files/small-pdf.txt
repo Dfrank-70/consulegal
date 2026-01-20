@@ -1,0 +1,10 @@
+Questo è un file PDF di piccole dimensioni per testare il sistema di upload.
+Contiene circa 500 caratteri per rimanere ben sotto i limiti.
+
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+
+Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+
+Test file upload system - small PDF simulation.
+Questo testo dovrebbe essere processato senza problemi.
+Fine del file di test.
