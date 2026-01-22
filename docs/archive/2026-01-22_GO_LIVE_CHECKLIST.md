@@ -1,8 +1,6 @@
-# ARCHIVED
+# ARCHIVED — 2026-01-22_GO_LIVE_CHECKLIST
 
 **Superseded by:** `docs/CURRENT_SPEC.md`
-
-**Archived copy:** `docs/archive/2026-01-22_GO_LIVE_CHECKLIST.md`
 
 ---
 

@@ -24,7 +24,7 @@ model User {
   sdiCode            String? // Codice Destinatario SDI
   email              String   @unique
   password           String
-  role               Role     @default(CLIENT)
+  role               Role     @default(CUSTOMER)
   isBlocked          Boolean  @default(false)
   llmProvider        String?
   customInstructions String?
@@ -41,6 +41,16 @@ model User {
   workflowId String?
 
   workflowExecutionLogs WorkflowExecutionLog[]
+  cases                 Case[]
+  assignedCases         Case[] @relation("CaseAssignee")
+  caseMessages          CaseMessage[]
+
+  defaultExpertId String?
+  defaultExpert   User?   @relation("UserDefaultExpert", fields: [defaultExpertId], references: [id])
+  assignedCustomers User[] @relation("UserDefaultExpert")
+
+  expertProfile    ExpertProfile?
+  approvedExperts  ExpertProfile[] @relation("ExpertApproval")
 }
 
 model Workflow {
@@ -48,6 +58,7 @@ model Workflow {
   name        String
   description String?
   isDefault   Boolean  @default(false)
+  allowExpertEscalation Boolean @default(false)
   userId      String? // Se null, è un template globale. Se valorizzato, è una copia per un utente specifico.
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -100,6 +111,7 @@ model Conversation {
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages Message[]
+  cases    Case[]
 
   // Traccia quale workflow è stato usato per questa conversazione
   workflowId String?
@@ -114,6 +126,7 @@ model Message {
   tokensOut      Int?
   llmProvider    String?
   attachments    Json?
+  meta           Json?
   createdAt      DateTime    @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
@@ -161,7 +174,15 @@ model TokenUsage {
 
 enum Role {
   ADMIN
-  CLIENT
+  CUSTOMER
+  EXPERT
+  EXPERT_PENDING
+}
+
+enum ExpertProfileStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum MessageRole {
@@ -172,6 +193,30 @@ enum MessageRole {
 enum UserType {
   PRIVATE
   COMPANY
+}
+
+enum CaseStatus {
+  OPEN
+  WAITING_EXPERT
+  ANSWERED
+  CLOSED
+}
+
+enum CasePriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum CaseTriggeredBy {
+  USER_REQUEST
+  AUTO_FLAG
+}
+
+enum CaseMessageRole {
+  SYSTEM
+  USER
+  EXPERT
 }
 
 model Plan {
@@ -275,4 +320,80 @@ model StripeEvent {
 
   @@index([eventType, receivedAt])
   @@map("stripe_events")
+}
+
+ model ExpertAssistantConfig {
+   id                String   @id @default(cuid())
+   isActive          Boolean  @default(true)
+   provider          String   @default("openai")
+   model             String   @default("gpt-4o-mini")
+   customInstruction String
+   maxOutputTokens   Int      @default(800)
+   createdAt         DateTime @default(now())
+   updatedAt         DateTime @updatedAt
+
+   @@index([isActive])
+ }
+
+// Expert Review Case System
+model Case {
+  id             String           @id @default(cuid())
+  userId         String
+  conversationId String
+  assignedToId   String?
+  status         CaseStatus       @default(OPEN)
+  priority       CasePriority     @default(MEDIUM)
+  triggeredBy    CaseTriggeredBy  @default(USER_REQUEST)
+  expertPacket   Json?            // Dossier strutturato dal workflow system_expert_packet_v1
+  expertSummary          Json?
+  expertSummaryProvider  String?
+  expertSummaryModel     String?
+  expertSummaryCreatedAt DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedTo   User?        @relation("CaseAssignee", fields: [assignedToId], references: [id])
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  messages     CaseMessage[]
+
+  @@index([userId])
+  @@index([conversationId])
+  @@index([assignedToId])
+  @@index([status, priority])
+}
+
+model CaseMessage {
+  id        String          @id @default(cuid())
+  caseId    String
+  authorId  String?         // Nullable per messaggi SYSTEM
+  role      CaseMessageRole
+  content   String          @db.Text
+  meta      Json?           // Metadata aggiuntivi (es: workflow execution details)
+  createdAt DateTime        @default(now())
+
+  case   Case  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  author User? @relation(fields: [authorId], references: [id])
+
+  @@index([caseId])
+}
+
+model ExpertProfile {
+  id            String              @id @default(cuid())
+  userId        String              @unique
+  fullName      String
+  firmName      String?
+  phone         String?
+  practiceAreas String[]
+  status        ExpertProfileStatus @default(PENDING)
+  approvalNotes String?
+  approvedAt    DateTime?
+  approvedById  String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  user       User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  approvedBy User? @relation("ExpertApproval", fields: [approvedById], references: [id])
+
+  @@index([status])
 }
