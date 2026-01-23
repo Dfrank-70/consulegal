@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { FormattedMessageContent } from "./formatted-message-content";
-import { Volume2, VolumeX, UserPlus } from "lucide-react";
+import { Volume2, VolumeX, UserPlus, FileCheck, Video, FileText } from "lucide-react";
 import { getTTS } from "@/lib/speech/tts";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -122,6 +122,14 @@ function MessageItem({
     }
   };
 
+  const handleRequestValidation = () => {
+    toast.info("Funzionalità 'Validazione' in arrivo a breve!");
+  };
+
+  const handleRequestVideocall = () => {
+    toast.info("Funzionalità 'Videocall' in arrivo a breve!");
+  };
+
   // Cleanup: ferma audio quando il componente viene smontato
   useEffect(() => {
     return () => {
@@ -205,26 +213,50 @@ function MessageItem({
             </div>
 
             {!isUser && (
-              <div className="mt-3 flex items-center justify-end gap-2">
+              <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
                 {canShowExpertAction && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleRequestExpert}
-                    disabled={isRequestingExpert || isPendingOrJustRequested}
-                    className="border-green-500 text-green-600 hover:bg-green-50 cursor-pointer disabled:opacity-50"
-                    title={isPendingOrJustRequested ? "Richiesta inviata (in attesa)" : "Chiedi parere all’esperto"}
-                  >
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    {isPendingOrJustRequested ? "Richiesta inviata (in attesa)" : "Chiedi parere all’esperto"}
-                  </Button>
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRequestValidation}
+                      className="border-purple-500 text-purple-600 hover:bg-purple-50 cursor-pointer"
+                      title="Validazione"
+                    >
+                      <FileCheck className="h-4 w-4 mr-2" />
+                      Validazione
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRequestExpert}
+                      disabled={isRequestingExpert || isPendingOrJustRequested}
+                      className="border-green-500 text-green-600 hover:bg-green-50 cursor-pointer disabled:opacity-50"
+                      title={isPendingOrJustRequested ? "Richiesta inviata (in attesa)" : "Parere scritto"}
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      {isPendingOrJustRequested ? "Inviata" : "Parere scritto"}
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRequestVideocall}
+                      className="border-blue-500 text-blue-600 hover:bg-blue-50 cursor-pointer"
+                      title="Videocall"
+                    >
+                      <Video className="h-4 w-4 mr-2" />
+                      Videocall
+                    </Button>
+                  </>
                 )}
 
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleSpeak}
-                  className="border-blue-500 text-blue-600 hover:bg-blue-50 cursor-pointer"
+                  className="border-slate-400 text-slate-500 hover:bg-slate-50 cursor-pointer"
                   title={isSpeaking ? "Interrompi lettura" : "Leggi messaggio"}
                 >
                   {isSpeaking ? (
