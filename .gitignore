@@ -57,3 +57,4 @@ find-admin.js
 check-*.js
 fix-workflow-instructions.js
 update-workflow-instructions.js
+scripts/cleanup-system-workflow-assignments.js
