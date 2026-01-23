@@ -1,13 +1,15 @@
 import prisma from "@/lib/prisma";
 import { PlanForm } from "./components/plan-form";
 
-const PlanPage = async ({ params }: { params: { planId: string } }) => {
+const PlanPage = async ({ params }: { params: Promise<{ planId: string }> }) => {
   let plan = null;
 
-  if (params.planId !== 'new') {
+  const { planId } = await params;
+
+  if (planId !== 'new') {
     plan = await prisma.plan.findUnique({
       where: {
-        id: params.planId,
+        id: planId,
       },
     });
   }

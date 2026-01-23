@@ -27,18 +27,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const entitlement = checkSubscriptionEntitlement(user.subscription);
-    
-    if (!entitlement.entitled) {
-      console.log(`🚫 RAG query denied for user ${session.user.id}: ${entitlement.reason}`);
-      return NextResponse.json(
-        { 
-          error: 'subscription_inactive', 
-          reason: entitlement.reason,
-          action: 'subscribe'
-        },
-        { status: 402 }
-      );
+    if ((user as any).role === 'CUSTOMER') {
+      const entitlement = checkSubscriptionEntitlement(user.subscription);
+      
+      if (!entitlement.entitled) {
+        console.log(`🚫 RAG query denied for user ${session.user.id}: ${entitlement.reason}`);
+        return NextResponse.json(
+          { 
+            error: 'subscription_inactive', 
+            reason: entitlement.reason,
+            action: 'subscribe'
+          },
+          { status: 402 }
+        );
+      }
     }
 
     const body: QueryRequest = await request.json();

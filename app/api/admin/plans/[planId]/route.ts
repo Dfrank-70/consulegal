@@ -5,7 +5,7 @@ import prisma from "@/lib/prisma";
 // Funzione per aggiornare un piano
 export async function PATCH(
   req: Request,
-  { params }: { params: { planId: string } }
+  ctx: { params: Promise<{ planId: string }> }
 ) {
   try {
     const session = await auth();
@@ -16,13 +16,15 @@ export async function PATCH(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    if (!params.planId) {
+    const { planId } = await ctx.params;
+
+    if (!planId) {
       return new NextResponse("Plan ID is required", { status: 400 });
     }
 
     const plan = await prisma.plan.update({
       where: {
-        id: params.planId,
+        id: planId,
       },
       data: {
         name,
@@ -43,7 +45,7 @@ export async function PATCH(
 // Funzione per eliminare un piano
 export async function DELETE(
   req: Request, // req non è usato ma necessario per la firma della funzione
-  { params }: { params: { planId: string } }
+  ctx: { params: Promise<{ planId: string }> }
 ) {
   try {
     const session = await auth();
@@ -52,13 +54,15 @@ export async function DELETE(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    if (!params.planId) {
+    const { planId } = await ctx.params;
+
+    if (!planId) {
       return new NextResponse("Plan ID is required", { status: 400 });
     }
 
     const plan = await prisma.plan.delete({
       where: {
-        id: params.planId,
+        id: planId,
       },
     });
 

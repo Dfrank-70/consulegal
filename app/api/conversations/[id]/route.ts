@@ -5,7 +5,7 @@ import prisma from '@/lib/prisma';
 // Funzione per gestire le richieste DELETE
 export async function DELETE(
   request: NextRequest, 
-  { params }: { params: { id: string } }
+  ctx: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
 
@@ -13,7 +13,8 @@ export async function DELETE(
     return new NextResponse('Non autorizzato', { status: 401 });
   }
 
-  const conversationId = params.id;
+  const { id } = await ctx.params;
+  const conversationId = id;
 
   if (!conversationId) {
     return new NextResponse('ID conversazione mancante', { status: 400 });
@@ -47,14 +48,15 @@ export async function DELETE(
 // Funzione per gestire le richieste PUT
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  ctx: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 });
   }
 
-  const conversationId = params.id;
+  const { id } = await ctx.params;
+  const conversationId = id;
   if (!conversationId) {
     return NextResponse.json({ error: 'ID conversazione mancante' }, { status: 400 });
   }

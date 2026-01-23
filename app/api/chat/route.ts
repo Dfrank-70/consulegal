@@ -36,6 +36,15 @@ function cleanExtractedText(text: string): string {
     .trim();
 }
 
+function appendSourcesDelimiterIfPresent(text: string): string {
+  if (!text) return text;
+  if (/\nSOURCES:\s*\n/.test(text)) return text;
+  if (/\[Fonte\s+\d+:/i.test(text)) {
+    return `${text}\n\nSOURCES:\n- [RAG] (fonti presenti nella risposta sopra)`;
+  }
+  return text;
+}
+
 interface FileExtractionResult {
   text: string;
   metadata: {
@@ -191,19 +200,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ENTITLEMENT CHECK: Block if no active subscription
-    const entitlement = checkSubscriptionEntitlement(user.subscription);
-    
-    if (!entitlement.entitled) {
-      console.log(`🚫 Access denied for user ${userId}: ${entitlement.reason}`);
-      return NextResponse.json(
-        { 
-          error: 'subscription_inactive', 
-          reason: entitlement.reason,
-          action: 'subscribe'
-        },
-        { status: 402 }
-      );
+    const effectiveRole = ((user as any).role === 'CLIENT' ? 'CUSTOMER' : (user as any).role) as string;
+
+    // ENTITLEMENT CHECK: solo per CUSTOMER
+    if (effectiveRole === 'CUSTOMER') {
+      const entitlement = checkSubscriptionEntitlement(user.subscription);
+      
+      if (!entitlement.entitled) {
+        console.log(`🚫 Access denied for user ${userId}: ${entitlement.reason}`);
+        return NextResponse.json(
+          { 
+            error: 'subscription_inactive', 
+            reason: entitlement.reason,
+            action: 'subscribe'
+          },
+          { status: 402 }
+        );
+      }
     }
 
     // --- PARSE FORM DATA (after entitlement check) ---
@@ -303,9 +316,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Subscription attiva, procedi con validazione token limit
+    // Subscription attiva: solo per CUSTOMER. Per EXPERT/ADMIN non è richiesta.
     let subscription = user.subscription;
-    let isSubscribed = true; // Entitlement già verificato sopra
+    let isSubscribed = effectiveRole === 'CUSTOMER';
 
     // Fallback: Se subscription mancante ma user ha stripeCustomerId, sincronizza
     if (!subscription && user.stripeCustomerId) {
@@ -404,11 +417,15 @@ export async function POST(req: NextRequest) {
     
     // Determina quale workflow utilizzare
     let workflowToUse = user.workflow;
+
+    if (workflowToUse?.name?.startsWith('system_')) {
+      workflowToUse = null;
+    }
     
     // Se l'utente non ha un workflow assegnato, usa quello di default
     if (!workflowToUse) {
       workflowToUse = await prisma.workflow.findFirst({
-        where: { isDefault: true },
+        where: { isDefault: true, name: { not: { startsWith: 'system_' } } },
         include: {
           nodes: true,
           edges: true,
@@ -434,6 +451,20 @@ export async function POST(req: NextRequest) {
           { error: "Conversazione non trovata" },
           { status: 404 }
         );
+      }
+
+      if ((conversation as any).workflowId) {
+        const conversationWorkflow = await prisma.workflow.findUnique({
+          where: { id: (conversation as any).workflowId },
+          select: { name: true },
+        });
+
+        if (conversationWorkflow?.name?.startsWith('system_')) {
+          conversation = await prisma.conversation.update({
+            where: { id: conversation.id },
+            data: { workflowId: null },
+          });
+        }
       }
     } else {
       // Create new conversation
@@ -552,12 +583,15 @@ ${attachmentContext}
       });
 
       content = completion.choices[0].message.content || "Mi dispiace, non sono stato in grado di generare una risposta.";
+      content = appendSourcesDelimiterIfPresent(content);
 
       // Count tokens for assistant message
       tokensOut = completion.usage?.completion_tokens || countTokens(content);
 
       totalTokens = messages.reduce((acc: number, msg: any) => acc + countTokens(msg.content || ""), 0);
     }
+
+    content = appendSourcesDelimiterIfPresent(content);
 
     // Save assistant message to database
     const assistantMessage = await prisma.message.create({
@@ -591,6 +625,18 @@ ${attachmentContext}
       tokensIn: tokensIn,
       tokensOut: tokensOut,
       llmProvider: useWorkflow ? "Workflow" : "OpenAI",
+      allowExpertEscalation: !!(workflowToUse as any)?.allowExpertEscalation,
+      pendingExpertCaseStatus: ((prisma as any).case?.findFirst
+        ? await (prisma as any).case.findFirst({
+            where: {
+              userId,
+              conversationId: conversation.id,
+              status: { in: ['OPEN', 'WAITING_EXPERT'] },
+            },
+            orderBy: { createdAt: 'desc' },
+            select: { status: true },
+          })
+        : null)?.status ?? null,
       ...(executionDetails && { workflowExecution: executionDetails }),
     });
     
@@ -651,6 +697,54 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    let workflowToUse: any = null;
+
+    if ((conversation as any).workflowId) {
+      workflowToUse = await prisma.workflow.findUnique({
+        where: { id: (conversation as any).workflowId },
+      });
+
+      if (workflowToUse?.name?.startsWith('system_')) {
+        workflowToUse = null;
+      }
+    }
+
+    if (!workflowToUse) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { workflow: true },
+      });
+
+      workflowToUse = user?.workflow;
+
+      if (workflowToUse?.name?.startsWith('system_')) {
+        workflowToUse = null;
+      }
+
+      if (!workflowToUse) {
+        workflowToUse = await prisma.workflow.findFirst({
+          where: { isDefault: true, name: { not: { startsWith: 'system_' } } },
+          orderBy: { createdAt: 'desc' },
+        });
+      }
+    }
+
+    const allowExpertEscalation = !!(workflowToUse as any)?.allowExpertEscalation;
+
+    const pendingExpertCase = (prisma as any).case?.findFirst
+      ? await (prisma as any).case.findFirst({
+          where: {
+            userId,
+            conversationId,
+            status: { in: ['OPEN', 'WAITING_EXPERT'] },
+          },
+          orderBy: { createdAt: 'desc' },
+          select: { status: true },
+        })
+      : null;
+
+    const pendingExpertCaseStatus = pendingExpertCase?.status ?? null;
+
     // Fetch messages for the validated conversation
     const messages = await prisma.message.findMany({
       where: {
@@ -661,7 +755,11 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    return NextResponse.json(messages);
+    return NextResponse.json({
+      messages,
+      allowExpertEscalation,
+      pendingExpertCaseStatus: pendingExpertCase?.status ?? null,
+    });
 
   } catch (error: any) {
     console.error("--- ERRORE DETTAGLIATO NEL GET /api/chat ---");

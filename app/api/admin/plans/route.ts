@@ -27,19 +27,22 @@ export async function POST(req: Request) {
   try {
     const session = await auth();
     const body = await req.json();
-    const { name, description, features, stripePriceId } = body;
+    const { name, description, features, stripePriceId, price } = body;
 
     if (!session?.user?.id || session.user.role !== 'ADMIN') {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    if (!name || !features || !stripePriceId) {
+    const normalizedPrice = typeof price === 'number' ? price : typeof price === 'string' ? Number(price) : NaN;
+
+    if (!name || !features || !stripePriceId || !Number.isFinite(normalizedPrice)) {
       return new NextResponse("Missing required fields", { status: 400 });
     }
 
     const plan = await prisma.plan.create({
       data: {
         name,
+        price: normalizedPrice,
         description,
         features,
         stripePriceId,

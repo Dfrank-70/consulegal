@@ -22,7 +22,9 @@ export async function GET(req: NextRequest) {
     }
 
     // Recupera tutti gli utenti con i dettagli dell'abbonamento
-    const users = await prisma.user.findMany({
+    const prismaAny = prisma as any;
+
+    const users = await prismaAny.user.findMany({
       select: {
         id: true,
 
@@ -49,6 +51,14 @@ export async function GET(req: NextRequest) {
             isDefault: true,
           },
         },
+        defaultExpert: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+          },
+        },
+        defaultExpertId: true,
         _count: {
           select: { conversations: true },
         },

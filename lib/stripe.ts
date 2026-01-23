@@ -6,14 +6,24 @@ const stripeSecretKey = isProduction
   ? process.env.STRIPE_SECRET_KEY 
   : process.env.STRIPE_SECRET_KEY_TEST;
 
-if (!stripeSecretKey) {
-  const missingKey = isProduction ? 'STRIPE_SECRET_KEY' : 'STRIPE_SECRET_KEY_TEST';
-  throw new Error(`${missingKey} is not set in environment variables (NODE_ENV=${process.env.NODE_ENV})`);
-}
+const missingKeyName = isProduction ? 'STRIPE_SECRET_KEY' : 'STRIPE_SECRET_KEY_TEST';
+const missingKeyMessage = `${missingKeyName} is not set in environment variables (NODE_ENV=${process.env.NODE_ENV})`;
 
-export const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: "2024-06-20" as any,
-  typescript: true,
+const stripeInstance = stripeSecretKey
+  ? new Stripe(stripeSecretKey, {
+      apiVersion: "2024-06-20" as any,
+      typescript: true,
+    })
+  : null;
+
+export const stripe: Stripe = new Proxy({} as Stripe, {
+  get(_target, prop) {
+    if (!stripeInstance) {
+      throw new Error(missingKeyMessage);
+    }
+    const value = (stripeInstance as any)[prop];
+    return typeof value === 'function' ? value.bind(stripeInstance) : value;
+  },
 });
 
 // Export helper per webhook secret

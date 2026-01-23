@@ -9,16 +9,41 @@ export default function Home() {
       <header className="py-6 px-4 md:px-8 bg-background border-b">
         <div className="container mx-auto flex justify-between items-center">
           <h1 className="text-2xl font-bold">Traspolegal</h1>
-          <div className="space-x-2 sm:space-x-4">
-            <Link href="/pricing">
-              <Button variant="ghost" size="sm">Piani</Button>
-            </Link>
-            <Link href="/login">
-              <Button variant="outline" size="sm">Accedi</Button>
-            </Link>
-            <Link href="/register">
-              <Button size="sm">Registrati</Button>
-            </Link>
+          <div className="flex items-center space-x-2 sm:space-x-4">
+            <div className="flex items-center gap-2 rounded-full bg-primary/10 px-2 py-1">
+              <span className="text-[10px] sm:text-[11px] uppercase tracking-wide text-primary">
+                Consulenti
+              </span>
+              <Link href={"/expert/login" as "/expert/login"}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-primary/40 text-primary hover:text-primary"
+                >
+                  Accedi
+                </Button>
+              </Link>
+              <Link href="/expert/apply">
+                <Button size="sm" className="bg-primary/90 hover:bg-primary">
+                  Registrati
+                </Button>
+              </Link>
+            </div>
+            <div className="hidden sm:block h-6 w-px bg-border" />
+            <div className="flex items-center gap-2 rounded-full bg-muted px-2 py-1">
+              <span className="text-[10px] sm:text-[11px] uppercase tracking-wide text-muted-foreground">
+                Clienti
+              </span>
+              <Link href="/pricing">
+                <Button variant="ghost" size="sm">Piani</Button>
+              </Link>
+              <Link href="/login">
+                <Button variant="outline" size="sm">Accedi</Button>
+              </Link>
+              <Link href="/register">
+                <Button size="sm">Registrati</Button>
+              </Link>
+            </div>
           </div>
         </div>
       </header>
@@ -104,7 +129,7 @@ export default function Home() {
 
       <footer className="bg-muted py-12">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
             <div>
               <h3 className="font-bold text-lg mb-3">Traspolegal</h3>
               <p className="text-muted-foreground">Consulenza legale intelligente, disponibile 24/7.</p>
@@ -132,6 +157,18 @@ export default function Home() {
                 <li><Link href="#" className="hover:underline">Termini di Servizio</Link></li>
                 <li><Link href="#" className="hover:underline">Cookie Policy</Link></li>
               </ul>
+            </div>
+            <div>
+              <h4 className="font-medium mb-3">Per professionisti</h4>
+              <p className="text-sm text-muted-foreground mb-4">
+                Collabora come esperto legale. Ricevi richieste assegnate e rispondi dalla tua area dedicata.
+              </p>
+              <Link href="/expert">
+                <Button variant="outline" size="sm">Candidati come esperto</Button>
+              </Link>
+              <p className="text-xs text-muted-foreground mt-3">
+                Registrazione soggetta ad approvazione.
+              </p>
             </div>
           </div>
           <div className="border-t mt-8 pt-8 flex flex-col md:flex-row justify-between items-center">

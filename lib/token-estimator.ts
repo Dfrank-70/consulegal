@@ -91,7 +91,7 @@ export function estimateChatInputTokens(
  */
 export function checkTokenLimit(
   estimatedTokens: number,
-  maxTokens: number = parseInt(process.env.MAX_INPUT_TOKENS || '2000')
+  maxTokens: number = parseInt(process.env.MAX_INPUT_TOKENS || '8000')
 ): { withinLimit: boolean; estimatedTokens: number; maxTokens: number } {
   return {
     withinLimit: estimatedTokens <= maxTokens,

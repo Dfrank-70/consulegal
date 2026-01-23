@@ -12,6 +12,10 @@ export async function GET(request: NextRequest) {
     }
 
     const workflows = await prisma.workflow.findMany({
+      where: {
+        userId: null,
+        name: { not: { startsWith: 'system_' } },
+      },
       include: {
         nodes: true,
         edges: true,
@@ -62,21 +66,28 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, isDefault, nodes, edges } = body;
+    const { name, description, isDefault, allowExpertEscalation, nodes, edges } = body;
+
+    const prismaAny = prisma as any;
+
+    const isSystemWorkflow = typeof name === 'string' && name.startsWith('system_');
+    const safeIsDefault = isSystemWorkflow ? false : (isDefault || false);
+    const safeAllowExpertEscalation = isSystemWorkflow ? false : !!allowExpertEscalation;
 
     // Se è un workflow di default, rimuovi il flag da tutti gli altri
-    if (isDefault) {
+    if (safeIsDefault) {
       await prisma.workflow.updateMany({
         where: { isDefault: true },
         data: { isDefault: false }
       });
     }
 
-    const workflow = await prisma.workflow.create({
+    const workflow = await prismaAny.workflow.create({
       data: {
         name,
         description,
-        isDefault: isDefault || false,
+        isDefault: safeIsDefault,
+        allowExpertEscalation: safeAllowExpertEscalation,
         nodes: {
           create: nodes?.map((node: any) => ({
             nodeId: node.id,

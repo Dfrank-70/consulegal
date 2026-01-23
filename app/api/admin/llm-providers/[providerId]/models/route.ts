@@ -11,8 +11,8 @@ interface ApiModel {
   // Altri campi potrebbero essere presenti ma non ci servono
 }
 
-export async function GET(request: Request, { params }: { params: { providerId: string } }) {
-  const { providerId } = params;
+export async function GET(request: Request, ctx: { params: Promise<{ providerId: string }> }) {
+  const { providerId } = await ctx.params;
 
   if (!providerId) {
     return NextResponse.json({ error: 'Provider ID mancante' }, { status: 400 });

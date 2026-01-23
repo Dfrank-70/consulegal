@@ -1,6 +1,7 @@
 "use client";
 
 import { RegisterForm } from "@/components/auth/register-form";
+import { Suspense } from "react";
 
 export default function RegisterPage() {
   return (
@@ -14,7 +15,9 @@ export default function RegisterPage() {
             Crea un account per accedere alla piattaforma
           </p>
         </div>
-        <RegisterForm />
+        <Suspense fallback={null}>
+          <RegisterForm />
+        </Suspense>
       </div>
     </div>
   );

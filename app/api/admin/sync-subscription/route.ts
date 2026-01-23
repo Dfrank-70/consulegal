@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { stripe } from '@/lib/stripe';
 
 export async function POST() {
   try {
+    const { stripe } = await import('@/lib/stripe');
+
     // Trova l'utente ottobre4@gmail.com
     const user = await prisma.user.findUnique({
       where: { email: 'ottobre4@gmail.com' },

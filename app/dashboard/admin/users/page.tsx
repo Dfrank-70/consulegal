@@ -24,6 +24,8 @@ interface User {
     description?: string;
     isDefault: boolean;
   };
+  defaultExpertId?: string | null;
+  defaultExpert?: { id: string; email: string; name: string | null } | null;
   _count: {
     conversations: number;
   };
@@ -36,6 +38,12 @@ interface Workflow {
   isDefault: boolean;
 }
 
+interface ExpertUser {
+  id: string;
+  email: string;
+  name: string | null;
+}
+
 export default function UsersPage() {
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
@@ -45,10 +53,12 @@ export default function UsersPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showWorkflowModal, setShowWorkflowModal] = useState(false);
   const [tempWorkflowId, setTempWorkflowId] = useState<string | null>(null);
+  const [experts, setExperts] = useState<ExpertUser[]>([]);
 
   useEffect(() => {
     fetchUsers();
     fetchWorkflows();
+    fetchExperts();
   }, []);
 
   const fetchUsers = async () => {
@@ -75,6 +85,39 @@ export default function UsersPage() {
       }
     } catch (error) {
       console.error('Errore nel caricamento dei workflow:', error);
+    }
+  };
+
+  const fetchExperts = async () => {
+    try {
+      const response = await fetch('/api/admin/experts');
+      if (response.ok) {
+        const data = await response.json();
+        setExperts(Array.isArray(data?.experts) ? data.experts : []);
+      }
+    } catch (error) {
+      console.error('Errore nel caricamento degli esperti:', error);
+    }
+  };
+
+  const assignDefaultExpert = async (userId: string, defaultExpertId: string | null) => {
+    try {
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ defaultExpertId }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || 'Errore nell\'assegnazione esperto');
+      }
+
+      await fetchUsers();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Errore nell\'assegnazione');
     }
   };
 
@@ -152,6 +195,7 @@ export default function UsersPage() {
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Utente</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Abbonamento</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Workflow Assegnato</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Esperto di riferimento</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Attività</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Stato</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Azioni</th>
@@ -201,6 +245,29 @@ export default function UsersPage() {
                     <span className="text-sm text-slate-400">Workflow di default</span>
                   )}
                 </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {user.role === 'CUSTOMER' ? (
+                    <div className="space-y-1">
+                      <div className="text-sm text-slate-100">
+                        {user.defaultExpert?.email || 'Non assegnato'}
+                      </div>
+                      <select
+                        className="mt-1 block w-full bg-slate-800 border border-slate-600 rounded-md px-2 py-1 text-xs text-slate-100"
+                        value={user.defaultExpertId ?? ''}
+                        onChange={(e) => assignDefaultExpert(user.id, e.target.value || null)}
+                      >
+                        <option value="">Non assegnato</option>
+                        {experts.map((expert) => (
+                          <option key={expert.id} value={expert.id}>
+                            {expert.email}{expert.name ? ` (${expert.name})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <span className="text-sm text-slate-400">—</span>
+                  )}
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
                   {user._count.conversations} conversazioni
                 </td>
@@ -233,7 +300,7 @@ export default function UsersPage() {
                     <span className="text-sm text-slate-200">Usa workflow di default</span>
                   </label>
                 </div>
-                {workflows.map((workflow) => (
+                {workflows.filter((w) => !w.name.startsWith('system_')).map((workflow) => (
                   <div key={workflow.id}>
                     <label className="flex items-center">
                       <input type="radio" name="workflow" value={workflow.id} checked={tempWorkflowId === workflow.id} onChange={() => setTempWorkflowId(workflow.id)} className="mr-2" />

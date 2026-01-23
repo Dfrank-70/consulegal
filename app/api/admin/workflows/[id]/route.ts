@@ -3,8 +3,8 @@ import prisma from '@/lib/prisma';
 import { auth } from '@/auth';
 
 // GET - Ottieni un workflow specifico
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
-  const id = params.id;
+export async function GET(_request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
 
   try {
     const session = await auth();
@@ -26,11 +26,16 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
 
     // Trasforma i dati per il frontend (formato React Flow)
+    const isSystemWorkflow = workflow.name.startsWith('system_');
+
     const responseData = {
       id: workflow.id,
       name: workflow.name,
       description: workflow.description,
       isDefault: workflow.isDefault,
+      allowExpertEscalation: (workflow as any).allowExpertEscalation ?? false,
+      userId: (workflow as any).userId ?? null,
+      isSystemWorkflow,
       createdAt: workflow.createdAt,
       updatedAt: workflow.updatedAt,
       // React Flow nodes
@@ -60,8 +65,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 // PUT - Aggiorna un workflow
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
-  const id = params.id;
+export async function PUT(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
 
   try {
     const session = await auth();
@@ -69,14 +74,31 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const existingWorkflow = await prisma.workflow.findUnique({
+      where: { id },
+      select: { id: true, userId: true, name: true },
+    });
+
+    if (!existingWorkflow) {
+      return NextResponse.json({ error: 'Workflow not found' }, { status: 404 });
+    }
+
+    if (existingWorkflow.name.startsWith('system_')) {
+      return NextResponse.json({ error: 'System workflow is read-only' }, { status: 403 });
+    }
+
     const body = await request.json();
-    const { name, description, isDefault, nodes, edges } = body;
+    const { name, description, isDefault, allowExpertEscalation, nodes, edges } = body;
+
+    const isSystemWorkflow = typeof name === 'string' && name.startsWith('system_');
+    const safeIsDefault = isSystemWorkflow ? false : (isDefault || false);
+    const safeAllowExpertEscalation = isSystemWorkflow ? false : !!allowExpertEscalation;
 
     const updatedWorkflow = await prisma.$transaction(async (tx) => {
       // Step 1: Update workflow main data
-      await tx.workflow.update({
+      await (tx as any).workflow.update({
         where: { id },
-        data: { name, description, isDefault },
+        data: { name, description, isDefault: safeIsDefault, allowExpertEscalation: safeAllowExpertEscalation },
       });
 
       // Step 2: Delete old nodes and edges
@@ -127,8 +149,8 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 // DELETE - Elimina un workflow
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
-  const id = params.id;
+export async function DELETE(_request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
 
   try {
     const session = await auth();

@@ -11,6 +11,10 @@ export async function middleware(request: NextRequest) {
     '/login',
     '/register',
     '/',
+    '/expert',
+    '/expert/login',
+    '/expert/apply',
+    '/expert/status',
     '/test',             // Existing test page
     '/diagnose',
     '/test-simple',

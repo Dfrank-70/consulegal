@@ -17,6 +17,10 @@ export default async function DashboardLayout({
     return redirect("/login");
   }
 
+  if (session.user.role === "EXPERT_PENDING") {
+    return redirect("/expert/status");
+  }
+
   // Check for active subscription
   let subscription = await prisma.subscription.findFirst({
     where: {

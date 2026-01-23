@@ -3,8 +3,7 @@ import { format } from 'date-fns';
 
 import React from "react";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
-import { logout } from "@/app/dashboard/actions";
+import { useSession, signOut } from "next-auth/react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { User, Settings, LogOut, X, Users, PlusCircle, Trash2, Sparkles, Database } from "lucide-react";
@@ -50,6 +49,8 @@ export function DashboardSidebar({
   const [conversationIdToDelete, setConversationIdToDelete] = React.useState<string | null>(null);
 
   const isAdmin = session?.user?.role === 'ADMIN';
+  const isExpert = session?.user?.role === 'EXPERT';
+  const isExpertPending = session?.user?.role === 'EXPERT_PENDING';
 
   React.useEffect(() => {
     setConversations(initialConversations);
@@ -96,15 +97,28 @@ export function DashboardSidebar({
   const adminNavigation = [
     { name: "Dashboard", href: "/dashboard/admin", icon: Settings }, // o un'icona più adatta
     { name: "Gestione Utenti", href: "/dashboard/admin/users", icon: Users },
+    { name: "Richieste Esperti", href: "/dashboard/admin/experts", icon: Users },
     { name: "Gestione Piani", href: "/dashboard/admin/plans", icon: Settings },
     { name: "Gestione Workflow", href: "/dashboard/admin/workflows", icon: Settings }, // o un'icona più adatta
     { name: "Gestione Provider", href: "/dashboard/admin/providers", icon: Settings }, // o un'icona più adatta
     { name: "Gestione RAG", href: "/dashboard/admin/rag", icon: Database },
     { name: "Monitoring", href: "/dashboard/admin/monitoring", icon: Settings }, // o un'icona più adatta
+    { name: "Cases", href: "/dashboard/admin/cases", icon: Users },
     { name: "Profilo", href: "/dashboard/profile", icon: User },
   ];
 
-  const navigation = isAdmin ? adminNavigation : userNavigation;
+  const expertNavigation = [
+    { name: "Cases", href: "/dashboard/expert/cases", icon: Users },
+    { name: "Profilo", href: "/dashboard/profile", icon: User },
+  ];
+
+  const navigation = isAdmin
+    ? adminNavigation
+    : isExpert
+    ? expertNavigation
+    : isExpertPending
+    ? [{ name: "Stato richiesta", href: "/expert/status", icon: Users }]
+    : userNavigation;
 
   const commonSidebarContent = (isMobile: boolean) => (
     <>
@@ -144,7 +158,7 @@ export function DashboardSidebar({
             </Link>
           );
         })}
-        {!isAdmin && (
+        {!isAdmin && !isExpert && !isExpertPending && (
           <div className="mt-4 pt-4 border-t border-border">
             <h3 className="px-3 text-xs font-semibold uppercase text-muted-foreground tracking-wider mb-2">
               Le Tue Consulenze
@@ -197,7 +211,7 @@ export function DashboardSidebar({
           </p>
         </div>
 
-        {!isAdmin && (
+        {!isAdmin && !isExpert && !isExpertPending && (
           <div className="space-y-2">
             <h4 className="px-3 text-xs font-semibold uppercase text-muted-foreground tracking-wider">Abbonamento</h4>
             {subscription ? (
@@ -227,7 +241,7 @@ export function DashboardSidebar({
               className="w-full justify-start"
               type="button"
               onClick={async () => {
-                await logout();
+                await signOut({ redirect: false });
                 window.location.href = "/login";
               }}
             >

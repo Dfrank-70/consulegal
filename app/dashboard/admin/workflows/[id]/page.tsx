@@ -25,6 +25,8 @@ interface Workflow {
   name: string;
   description?: string;
   isDefault: boolean;
+  allowExpertEscalation?: boolean;
+  userId?: string | null;
   nodes: any[];
   edges: any[];
 }
@@ -81,12 +83,23 @@ const RAGNode = ({ data }: { data: any }) => (
   </div>
 );
 
+const TestNode = ({ data }: { data: any }) => (
+  <div className="px-4 py-2 shadow-md rounded-md bg-yellow-900/50 border-2 border-yellow-500 text-white">
+    <Handle type="target" position={Position.Left} style={{ background: '#FBBF24', borderColor: 'transparent' }} />
+    <div className="font-bold">🧪 TEST</div>
+    <div className="text-sm text-yellow-300">Validazione Upload</div>
+    <div className="text-xs text-slate-400 mt-1">No LLM cost</div>
+    <Handle type="source" position={Position.Right} style={{ background: '#FBBF24', borderColor: 'transparent' }} />
+  </div>
+);
+
 
 export default function WorkflowEditorPage() {
   const nodeTypes: NodeTypes = {
     input: InputNode,
     llm: LLMNode,
     rag: RAGNode,
+    test: TestNode,
     output: OutputNode,
   };
   const { data: session, status } = useSession();
@@ -100,6 +113,9 @@ export default function WorkflowEditorPage() {
   const [workflowName, setWorkflowName] = useState('');
   const [workflowDescription, setWorkflowDescription] = useState('');
   const [isDefault, setIsDefault] = useState(false);
+  const [allowExpertEscalation, setAllowExpertEscalation] = useState(false);
+  const [workflowUserId, setWorkflowUserId] = useState<string | null>(null);
+  const [isSystemWorkflow, setIsSystemWorkflow] = useState(false);
 
   const [localProviders, setLocalProviders] = useState<LLMProvider[]>([]);
   const [availableModels, setAvailableModels] = useState<Record<string, { id: string; input: number; output: number; }[]>>({});
@@ -131,6 +147,9 @@ export default function WorkflowEditorPage() {
           setWorkflowName(workflowData.name);
           setWorkflowDescription(workflowData.description || '');
           setIsDefault(workflowData.isDefault);
+          setAllowExpertEscalation(!!workflowData.allowExpertEscalation);
+          setWorkflowUserId((workflowData.userId as any) ?? null);
+          setIsSystemWorkflow(!!(workflowData as any).isSystemWorkflow || workflowData.name?.startsWith('system_'));
           setNodes(workflowData.nodes || []);
           setEdges((workflowData.edges || []).map(e => ({ ...e, animated: true })));
         }
@@ -225,6 +244,7 @@ export default function WorkflowEditorPage() {
         name: workflowName,
         description: workflowDescription,
         isDefault,
+        allowExpertEscalation,
         nodes: nodes.map(({ id, type, position, data }) => ({ id, type, position, data })),
         edges: edges.map(({ id, source, target, data }) => ({ id, source, target, data: data || {} })),
       };
@@ -247,6 +267,23 @@ export default function WorkflowEditorPage() {
 
   if (loading) {
     return <div className="h-full flex items-center justify-center text-white">Caricamento...</div>;
+  }
+
+  if (!isNew && isSystemWorkflow) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center text-slate-100 p-6">
+        <div className="max-w-xl text-center space-y-4">
+          <h1 className="text-2xl font-bold">System workflow (read-only)</h1>
+          <p className="text-slate-300">Questo workflow è di sistema e non è modificabile tramite l'editor grafico.</p>
+          <button
+            onClick={() => router.push('/dashboard/admin/workflows')}
+            className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded"
+          >
+            Torna alla lista workflow
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -273,12 +310,28 @@ export default function WorkflowEditorPage() {
             <label htmlFor="isDefault" className="text-sm font-medium text-slate-300">Workflow di default</label>
           </div>
         </div>
+
+        {!workflowName.startsWith('system_') && (
+          <div className="mt-3">
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={allowExpertEscalation}
+                onChange={(e) => setAllowExpertEscalation(e.target.checked)}
+                className="mr-2 h-4 w-4 rounded"
+              />
+              <span className="text-sm font-medium text-slate-300">Abilita escalation a esperto (mostra bottone “Chiedi parere all’esperto” in chat)</span>
+            </label>
+            <div className="text-xs text-slate-400 mt-1">Se attivo, l’ultima risposta della chat può essere inviata a revisione esperta (se utente abilitato).</div>
+          </div>
+        )}
       </div>
       <div className="flex-1 flex">
         <div className="w-64 bg-slate-900 shadow-sm border-r border-slate-700 p-4">
           <h3 className="font-bold text-white mb-4">Aggiungi Nodi</h3>
           <div className="space-y-2">
             <button onClick={() => addNode('input')} className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded text-sm">+ Input</button>
+            <button onClick={() => addNode('test')} className="w-full bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-2 px-4 rounded text-sm">🧪 Test Upload</button>
             <button onClick={() => addNode('llm')} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded text-sm">+ LLM</button>
             <button onClick={() => addNode('rag')} className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 px-4 rounded text-sm">+ RAG Query</button>
             <button onClick={() => addNode('output')} className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded text-sm">+ Output</button>
@@ -408,6 +461,23 @@ export default function WorkflowEditorPage() {
                     className="mt-1 block w-full bg-slate-700 border-slate-500 rounded-md px-3 py-2 text-white"
                   />
                   <p className="text-xs text-slate-400 mt-1">0 = solo text search, 1 = solo vector, 0.5 = bilanciato</p>
+                </div>
+              </div>
+            )}
+            {selectedNode.type === 'test' && (
+              <div className="space-y-2">
+                <div className="text-sm text-slate-300 font-semibold">🧪 Nodo di Test</div>
+                <div className="text-sm text-slate-400">
+                  Questo nodo valida l'upload dei file senza chiamare l'LLM:
+                  <ul className="list-disc ml-4 mt-2 space-y-1">
+                    <li>Conta caratteri e token</li>
+                    <li>Rileva allegati caricati</li>
+                    <li>Mostra preview del contenuto</li>
+                    <li>Nessun costo API</li>
+                  </ul>
+                </div>
+                <div className="bg-green-900/30 border border-green-700 rounded p-2 text-xs text-green-300 mt-2">
+                  ✅ Ideale per testare parsing file PDF/DOCX/TXT
                 </div>
               </div>
             )}

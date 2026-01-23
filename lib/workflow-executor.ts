@@ -100,6 +100,46 @@ async function executeNode(
       return step;
     }
 
+    if (node.type === 'test') {
+      // Nodo TEST - mostra input, conta token, non chiama LLM
+      const inputLength = input.length;
+      const estimatedTokens = Math.ceil(inputLength / 4);
+      
+      // Identifica se ci sono documenti allegati
+      const hasAttachment = input.includes('--- DOCUMENTO ALLEGATO DALL\'UTENTE ---');
+      
+      // Preview dell'input (primi 1000 caratteri)
+      const preview = input.length > 1000 
+        ? input.substring(0, 1000) + '\n\n[...contenuto troncato per preview...]'
+        : input;
+      
+      step.output = `╔════════════════════════════════════════════════════════════╗
+║              NODO TEST - VALIDAZIONE UPLOAD               ║
+╚════════════════════════════════════════════════════════════╝
+
+✅ Input ricevuto con successo
+
+📊 STATISTICHE:
+   • Lunghezza input: ${inputLength.toLocaleString()} caratteri
+   • Token stimati: ${estimatedTokens.toLocaleString()} token
+   • Allegati rilevati: ${hasAttachment ? 'SÌ' : 'NO'}
+
+📄 PREVIEW INPUT (primi 1000 caratteri):
+${preview}
+
+✅ File processato correttamente - pronto per LLM
+   (Questo è un nodo di test, nessuna chiamata LLM effettuata)`;
+
+      step.tokensIn = estimatedTokens;
+      step.tokensOut = Math.ceil(step.output.length / 4);
+      step.cost = 0;
+      step.success = true;
+      
+      console.log(`[TEST NODE] Input length: ${inputLength} chars, ${estimatedTokens} tokens, Has attachment: ${hasAttachment}`);
+      
+      return step;
+    }
+
     if (node.type === 'rag') {
       // Nodo RAG - recupera contesti rilevanti dal database
       const ragNodeId = node.data.ragNodeId;
@@ -143,6 +183,24 @@ Nessun documento rilevante trovato nel database.`;
     }
 
     if (node.type === 'llm') {
+      if (process.env.DRY_RUN_LLM === 'true') {
+        const systemPrompt = ((): string => {
+          let sp = node.data.customInstruction || '';
+          if (node.data.prompt) sp += sp ? '\n\n' + node.data.prompt : node.data.prompt;
+          return sp;
+        })();
+        step.systemPrompt = systemPrompt || undefined;
+        step.provider = 'DRY_RUN';
+        step.model = (node.data.model ?? '').toString().trim() || 'dry-run';
+        step.tokensIn = Math.ceil((input.length + (systemPrompt?.length || 0)) / 4);
+        step.output = `[DRY RUN] Nodo LLM simulato.\n\nInput ricevuto (preview):\n${input.substring(0, 500)}${input.length > 500 ? '…' : ''}`;
+        step.tokensOut = Math.ceil(step.output.length / 4);
+        step.cost = 0;
+        step.success = true;
+        step.executionTime = Date.now() - startTime;
+        return step;
+      }
+
       // Supporto sia per providerId (preferito) sia per provider (nome legacy)
       const providerById = node.data.providerId
         ? providers.find((p: any) => p.id === node.data.providerId)

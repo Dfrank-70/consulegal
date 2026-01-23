@@ -5,7 +5,7 @@ import { auth } from '@/auth';
 // PUT - Assegna un workflow a un utente
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
     const session = await auth();
@@ -16,10 +16,12 @@ export async function PUT(
 
     const body = await request.json();
     const { workflowId } = body;
+    
+    const { userId } = await params;
 
     // Verifica che l'utente esista
     const user = await prisma.user.findUnique({
-      where: { id: params.userId }
+      where: { id: userId }
     });
 
     if (!user) {
@@ -35,11 +37,15 @@ export async function PUT(
       if (!workflow) {
         return NextResponse.json({ error: 'Workflow not found' }, { status: 404 });
       }
+
+      if (workflow.name.startsWith('system_')) {
+        return NextResponse.json({ error: 'Cannot assign system workflow' }, { status: 400 });
+      }
     }
 
     // Aggiorna l'utente con il nuovo workflow
     const updatedUser = await prisma.user.update({
-      where: { id: params.userId },
+      where: { id: userId },
       data: { workflowId: workflowId || null },
       include: {
         workflow: {

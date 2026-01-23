@@ -18,6 +18,7 @@ export type Message = {
   tokensIn?: number | null;
   tokensOut?: number | null;
   llmProvider?: string | null;
+  meta?: any;
 };
 
 interface ChatInterfaceProps {
@@ -34,6 +35,8 @@ export function ChatInterface({ selectedConversationId, isSubscribed }: ChatInte
   const [tokenCount, setTokenCount] = useState({ input: 0, output: 0 });
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [conversationTitle, setConversationTitle] = useState<string | null>(null);
+  const [allowExpertEscalation, setAllowExpertEscalation] = useState(false);
+  const [pendingExpertCaseStatus, setPendingExpertCaseStatus] = useState<string | null>(null);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editableTitle, setEditableTitle] = useState<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -68,6 +71,8 @@ export function ChatInterface({ selectedConversationId, isSubscribed }: ChatInte
       setConversationTitle(newConversation.title);
       setMessages([]);
       setTokenCount({ input: 0, output: 0 });
+      setAllowExpertEscalation(false);
+      setPendingExpertCaseStatus(null);
       setEditableTitle(newConversation.title);
       setIsEditingTitle(true);
 
@@ -101,7 +106,10 @@ export function ChatInterface({ selectedConversationId, isSubscribed }: ChatInte
             const errorData = await messagesResponse.json().catch(() => null);
             throw new Error(errorData?.error || 'Impossibile caricare i messaggi.');
           }
-          const loadedMessages: Message[] = await messagesResponse.json();
+          const loadedData: any = await messagesResponse.json();
+          const loadedMessages: Message[] = Array.isArray(loadedData) ? loadedData : (loadedData.messages || []);
+          setAllowExpertEscalation(!!(Array.isArray(loadedData) ? false : loadedData.allowExpertEscalation));
+          setPendingExpertCaseStatus(Array.isArray(loadedData) ? null : (loadedData.pendingExpertCaseStatus ?? null));
 
           const convDetailsResponse = await fetch(`/api/conversations?id=${selectedConversationId}`);
           let title = `Consulenza ID: ${selectedConversationId.substring(0, 8)}...`;
@@ -136,6 +144,8 @@ export function ChatInterface({ selectedConversationId, isSubscribed }: ChatInte
         setConversationTitle("Nuova Consulenza");
         setError(null);
         setTokenCount({ input: 0, output: 0 });
+        setAllowExpertEscalation(false);
+        setPendingExpertCaseStatus(null);
         setIsLoading(false);
       }
     };
@@ -229,7 +239,11 @@ export function ChatInterface({ selectedConversationId, isSubscribed }: ChatInte
         let errorMessageText = "Si è verificato un errore.";
         try {
           errorData = await response.json();
-          errorMessageText = errorData?.error || errorMessageText;
+          if (errorData?.error === 'file_parse_failed' && typeof errorData?.details === 'string' && errorData.details.trim()) {
+            errorMessageText = errorData.details;
+          } else {
+            errorMessageText = errorData?.error || errorMessageText;
+          }
         } catch (jsonError) { /* Ignore */ }
         
         setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
@@ -251,6 +265,9 @@ export function ChatInterface({ selectedConversationId, isSubscribed }: ChatInte
         router.push(`/dashboard?conversationId=${data.conversationId}`, { scroll: false });
         router.refresh();
       }
+
+      setAllowExpertEscalation(!!data.allowExpertEscalation);
+      setPendingExpertCaseStatus(data.pendingExpertCaseStatus ?? null);
       
       const assistantMessage: Message = {
         id: data.messageId || `assistant-${Date.now()}`,
@@ -352,7 +369,13 @@ export function ChatInterface({ selectedConversationId, isSubscribed }: ChatInte
           </Alert>
         )}
         
-        <MessageList messages={messages} />
+        <MessageList
+          messages={messages}
+          conversationId={currentConversationId}
+          allowExpertEscalation={allowExpertEscalation}
+          isSubscribed={isSubscribed}
+          pendingExpertCaseStatus={pendingExpertCaseStatus}
+        />
         <div ref={messagesEndRef} />
       </div>
 

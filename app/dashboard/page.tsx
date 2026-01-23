@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: { [key: string]: string | string[] | undefined };
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -20,21 +20,32 @@ export default async function DashboardPage({
     redirect('/dashboard/admin');
   }
 
+  if (session.user.role === 'EXPERT_PENDING') {
+    redirect('/expert/status');
+  }
+
+  if (session.user.role === 'EXPERT') {
+    redirect('/dashboard/expert');
+  }
+
   // Logica per gli utenti non-admin
   const searchParamsResolved = await searchParams;
   const conversationId = searchParamsResolved.conversationId;
   
   const subscription = await getUserSubscription(session.user.id);
-  const isSubscribed = 
-    !!subscription &&
-    !!subscription.currentPeriodEnd &&
-    subscription.currentPeriodEnd.getTime() > Date.now();
+  const isSubscribed = session.user.role === 'CUSTOMER'
+    ? (
+        !!subscription &&
+        !!subscription.currentPeriodEnd &&
+        subscription.currentPeriodEnd.getTime() > Date.now()
+      )
+    : true;
 
   return (
     <div className="h-full w-full">
       <ChatInterface 
         selectedConversationId={typeof conversationId === 'string' ? conversationId : null}
-        isSubscribed={isSubscribed} 
+        isSubscribed={isSubscribed}
       />
     </div>
   );

@@ -33,6 +33,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# local-only (never commit)
+docs/*.local.md
+
 # vercel
 .vercel
 
@@ -41,3 +44,16 @@ yarn-error.log*
 next-env.d.ts
 
 /lib/generated/prisma
+
+# Local development & temp files
+tmp/
+test-*.txt
+*.log
+
+# Local admin/debug scripts (security risk)
+reset-admin-password.js
+get-admin-password.js
+find-admin.js
+check-*.js
+fix-workflow-instructions.js
+update-workflow-instructions.js
